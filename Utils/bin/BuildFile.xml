@@ -1,0 +1,5 @@
+<use name="BaconAna/DataFormats"/>
+<use name="root"/>
+<use name="rootgraphics"/>
+<flags CXXFLAGS="-g -Wall -std=c++0x -Wno-reorder"/>
+<bin file="FakeRate.cpp" name="FakeRate"> </bin>

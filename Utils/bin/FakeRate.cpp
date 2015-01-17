@@ -292,7 +292,6 @@ int main() {
         cout << "# elec2 passing sel: " << jetElec << ", # muons2 passing sel: " << jetMuon << endl;
         cout << "lep1 not matched with gen: " << l1NotMatched << ", lep2 not matched with jet: " << l2NotMatched << endl;
         cout << "Total fake rate: " << hNum->Integral()/hDenom->Integral() << endl;
-        cout << "Total fake rate with jet pt > 10 GeV: " << hNum->Integral(1,-1)/hDenom->Integral(1,-1) << endl;
     }
     
     // -- Calculate and draw fake rate --

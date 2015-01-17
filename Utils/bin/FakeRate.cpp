@@ -33,7 +33,6 @@ int main() {
     bool eJet = false; // eJet = true: jet -> e
     bool tightSel = true; // tight or loose lepton selection
     float leptonPt = 20;
-//     float jetPt = 0;
     
     // Binning
     const int nEtaBins = 8, nPtBins = 7;
@@ -46,9 +45,10 @@ int main() {
     const float looseElCuts[2][10] = {{0.0181,0.0936,0.0123,0.141,0.0166,0.54342,0.1353,0.24,1e-6,1},{0.0124,0.0642,0.035,0.1115,0.098,0.9187,0.1443,0.3529,1e-6,1}};
     
     // Directories
+    int maxInFiles=20;
     TString outDirPNG = "/afs/cern.ch/user/j/jlauwers/www/protected/VBS/TP/FakeRate/";
     TString outDirROOT = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/Results/";
-//     TString inDir = "eos/cms/store/group/dpg_ecal/alca_ecalcalib/ecalMIBI/rgerosa/CSA14/WJetsToLNu_13TeV-madgraph-pythia8-tauola_v3/";
+//     TString inDir = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/eos/cms/store/group/dpg_ecal/alca_ecalcalib/ecalMIBI/rgerosa/CSA14/WJetsToLNu_13TeV-madgraph-pythia8-tauola_v3/";
     TString inDir = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/BaconTrees/";
     
     // Constants
@@ -62,6 +62,8 @@ int main() {
     TChain* tree = new TChain("ntupler/Events");
     DIR *dpdf;
     struct dirent *epdf;
+    int nFiles = 0;
+    if( verbose > 2 ) maxInFiles=1;
 
     dpdf = opendir(inDir);
     if (dpdf != NULL){
@@ -69,14 +71,14 @@ int main() {
             string fname = epdf->d_name;
             if (fname != "." && fname != "..") {
                 tree->Add(inDir+fname);
+                nFiles++;
+                
                 if( verbose > 2 ) cout << "Adding file: " << epdf->d_name << endl;
+                if( nFiles == maxInFiles ) break;
             }
         }
     }
-
-//     tree->Add("../../BaconTrees/baconTree_1009_1_RDq.root");
-//     TFile* inFile = TFile::Open("/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/BaconTrees/baconTree_1009_1_RDq.root");
-//     TTree* tree = (TTree*) inFile->Get("ntupler/Events");
+    if( verbose > 0 ) cout << "Added " << nFiles << " files to chain." << endl;
     
     TClonesArray *fElectron = new TClonesArray("baconhep::TElectron");
     TClonesArray *fMuon = new TClonesArray("baconhep::TMuon");
@@ -107,7 +109,6 @@ int main() {
         tree->GetEntry(i);
         int nElectrons = fElectron->GetEntriesFast();
         int nMuons = fMuon->GetEntriesFast();
-//         int nLeptons = nElectrons + nMuons;
         if( verbose > 2 ) cout << "nElectrons: " << nElectrons << ", nMuons: " << nMuons << endl;
         
         // Calculate lepton efficiencies
@@ -116,7 +117,7 @@ int main() {
                 TElectron *elec = (TElectron*)((*fElectron)[iE]);
                 if( fabs(elec->eta) < 2.5 && elec->pt > leptonPt) {
                     elecEffDenom++;
-                    bool inEndcap = elec->scEta > 1.479;
+                    bool inEndcap = fabs(elec->scEta) > 1.479;
                     bool passSel;
                     if( tightSel) passSel = passElectronID(elec, tightElCuts[inEndcap] );
                     else passSel = passElectronID(elec, looseElCuts[inEndcap] );
@@ -135,7 +136,7 @@ int main() {
             }
         }
         
-        // -- Select at least one tight lepton with pt > leptonPt GeV that matches a genLepton --
+        // -- Select at one tight lepton with pt > leptonPt GeV that matches a genLepton --
         float leptonEta=-1, leptonPhi=-1; // Has to be removed from jet collection
         // W -> e
         if( eLepton ) {
@@ -143,10 +144,10 @@ int main() {
             bool passFullSel = false;
             for( int iE = 0; iE < nElectrons; ++iE ) {
                 TElectron *elec = (TElectron*)((*fElectron)[iE]);
-                bool inEndcap = elec->scEta > 1.479;
+                bool inEndcap = fabs(elec->scEta) > 1.479;
                 bool passSel;
-                if( tightSel) passSel = passElectronID(elec, tightElCuts[inEndcap] ) && elec->pt > leptonPt;
-                else passSel = passElectronID(elec, looseElCuts[inEndcap] ) && elec->pt > leptonPt;
+                if( tightSel) passSel = elec->pt > leptonPt && passElectronID(elec, tightElCuts[inEndcap] );
+                else passSel = elec->pt > leptonPt && passElectronID(elec, looseElCuts[inEndcap] );
                 if( passSel ) {
                     if( verbose > 1 ) cout << "Electron " << iE <<" passed lepton id" << endl;
                     l1NotMatched++;
@@ -168,6 +169,7 @@ int main() {
                             }
                         }
                     }
+                    if( passFullSel ) break; // first pt lepton
                 }
             }
             if( !passFullSel ) continue;
@@ -180,8 +182,8 @@ int main() {
             for( int iM = 0; iM < nMuons; ++iM ) {
                 TMuon *muon = (TMuon*)((*fMuon)[iM]);
                 bool passSel;
-                if( tightSel) passSel = passTightMuonID(muon) && muon->pt > leptonPt;
-                else passSel =  passLooseMuonID(muon) && muon->pt > leptonPt;
+                if( tightSel) passSel = muon->pt > leptonPt && passTightMuonID(muon);
+                else passSel =  muon->pt > leptonPt && passLooseMuonID(muon);
                 if( passSel ) {
                     if( verbose > 1 ) cout << "Muon " << iM << " passed lepton id" << endl;
                     l1NotMatched++;
@@ -203,6 +205,7 @@ int main() {
                             }
                         }
                     }
+                    if( passFullSel ) break; // first pt lepton
                 }
             }
             if( !passFullSel ) continue;
@@ -217,10 +220,10 @@ int main() {
         if( eJet ) {
             for( int iE = 0; iE < nElectrons; ++iE ) {
                 TElectron *elec = (TElectron*)((*fElectron)[iE]);
-                bool inEndcap = elec->scEta > 1.479;
+                bool inEndcap = fabs(elec->scEta) > 1.479;
                 bool passSel;
-                if( tightSel) passSel = passElectronID(elec, tightElCuts[inEndcap] ) && elec->pt > leptonPt;
-                else passSel = passElectronID(elec, looseElCuts[inEndcap] ) && elec->pt > leptonPt;
+                if( tightSel) passSel = elec->pt > leptonPt && passElectronID(elec, tightElCuts[inEndcap] );
+                else passSel = elec->pt > leptonPt && passElectronID(elec, looseElCuts[inEndcap] );
                 if( passSel ) {
                     if( eLepton && secLeptIndex == -1) secLeptIndex = -2; // skip first electron
                     else {
@@ -239,8 +242,8 @@ int main() {
             for( int iM = 0; iM < nMuons; ++iM ) {
                 TMuon *muon = (TMuon*)((*fMuon)[iM]);
                 bool passSel;
-                if( tightSel) passSel = passTightMuonID(muon) && muon->pt > leptonPt;
-                else passSel =  passLooseMuonID(muon) && muon->pt > leptonPt;
+                if( tightSel) passSel = muon->pt > leptonPt && passTightMuonID(muon);
+                else passSel = muon->pt > leptonPt && passLooseMuonID(muon);
                 if( passSel ) {
                     if( (!eLepton) && secLeptIndex == -1) secLeptIndex = -2; // skip first muon
                     else {
@@ -279,8 +282,6 @@ int main() {
         // Lepton should be matched
         if( secLeptIndex >= 0 ) {
             l2NotMatched++;
-//             if(eJet) hNum->Fill(elec->eta, elec->pt);
-//             else hNum->Fill(muon->eta, muon->pt);
         }
     }    
     
@@ -291,6 +292,7 @@ int main() {
         cout << "# elec2 passing sel: " << jetElec << ", # muons2 passing sel: " << jetMuon << endl;
         cout << "lep1 not matched with gen: " << l1NotMatched << ", lep2 not matched with jet: " << l2NotMatched << endl;
         cout << "Total fake rate: " << hNum->Integral()/hDenom->Integral() << endl;
+        cout << "Total fake rate with jet pt > 10 GeV: " << hNum->Integral(1,-1)/hDenom->Integral(1,-1) << endl;
     }
     
     // -- Calculate and draw fake rate --

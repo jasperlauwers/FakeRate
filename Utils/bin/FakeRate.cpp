@@ -56,12 +56,15 @@ int main() {
     const float ptBins[nPtBins+1] = {0,10,20,30,40,60,100,140};
     
     // ID cuts
-    // tightElCuts[barrel/endcap][IDcuts], CSA14 selection, conditions: 25ns, better detector alignment
-    const float tightElCuts[2][10] = {{0.0091,0.031,0.0106,0.0532,0.0126,0.0116,0.0609,0.1649,1e-6,1},{0.0106,0.0359,0.0305,0.0835,0.0163,0.5999,0.1126,0.2075,1e-6,1}};
-    const float looseElCuts[2][10] = {{0.0181,0.0936,0.0123,0.141,0.0166,0.54342,0.1353,0.24,1e-6,1},{0.0124,0.0642,0.035,0.1115,0.098,0.9187,0.1443,0.3529,1e-6,1}};
+    // tightElCuts[barrel/endcap][IDcuts], CSA14 selection, conditions: 50ns, poor detector alignment
+    const float tightElCuts[2][10] = {{0.012,0.024,0.01,0.074,0.0091,0.017,0.026,0.10,1e-6,1},{0.019,0.043,0.029,0.08,0.037,0.065,0.076,0.14,1e-6,1}};
+    const float looseElCuts[2][10] = {{0.0181,0.0936,0.0123,0.141,0.0166,0.54342,0.1353,0.24,1e-6,1},{0.0124,0.0642,0.035,0.1115,0.098,0.9187,0.1443,0.3529,1e-6,1}};    
+    // CSA14 selection, conditions: 25ns, better detector alignment
+//     const float tightElCuts[2][10] = {{0.0091,0.031,0.0106,0.0532,0.0126,0.0116,0.0609,0.1649,1e-6,1},{0.0106,0.0359,0.0305,0.0835,0.0163,0.5999,0.1126,0.2075,1e-6,1}};
+//     const float looseElCuts[2][10] = {{0.0181,0.0936,0.0123,0.141,0.0166,0.54342,0.1353,0.24,1e-6,1},{0.0124,0.0642,0.035,0.1115,0.098,0.9187,0.1443,0.3529,1e-6,1}};
     
     // Directories
-    int maxInFiles=100;
+    int maxInFiles=50;
     TString outDirPNG = "/afs/cern.ch/user/j/jlauwers/www/protected/VBS/TP/FakeRate/";
     TString outDirROOT = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/Results/";
     TString inDir = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/eos/cms/store/group/dpg_ecal/alca_ecalcalib/ecalMIBI/rgerosa/CSA14/WJetsToLNu_13TeV-madgraph-pythia8-tauola_v3/";
@@ -99,6 +102,12 @@ int main() {
         }
     }
     if( verbose > 0 ) cout << "Added " << nFiles << " files to chain." << endl;
+    
+    tree->SetBranchStatus("*",0);
+    tree->SetBranchStatus("Electron*",1);
+    tree->SetBranchStatus("Muon*",1);
+    tree->SetBranchStatus("Jet05*",1);
+    tree->SetBranchStatus("GenParticle*",1);
     
     TClonesArray *fElectron = new TClonesArray("baconhep::TElectron");
     TClonesArray *fMuon = new TClonesArray("baconhep::TMuon");
@@ -329,16 +338,18 @@ int main() {
     hFakeRate->Write();
     
     TCanvas *c1 = new TCanvas("c1","c1");
-    TH1D *hFakeRate_eta =  hFakeRate->ProjectionX("_eta", 0, -1, "e");
+    TH1D *hFakeRate_eta =  hFakeRate->ProjectionX(strTitle+"_eta", 0, -1, "e");
     hFakeRate_eta->GetXaxis()->SetTitle("eta");
     hFakeRate_eta->Draw();
     c1->Print(outDirPNG+strTitle+"_eta.png","png");
+    hFakeRate_eta->Write();
     
     TCanvas *c2 = new TCanvas("c2","c2");
-    TH1D *hFakeRate_pt =  hFakeRate->ProjectionY("_pt", 0, -1, "e");
+    TH1D *hFakeRate_pt =  hFakeRate->ProjectionY(strTitle+"_pt", 0, -1, "e");
     hFakeRate_pt->GetXaxis()->SetTitle("pt");
     hFakeRate_pt->Draw();
     c2->Print(outDirPNG+strTitle+"_pt.png","png");
+    hFakeRate_pt->Write();
     
     TCanvas *c3 = new TCanvas("c3","c3");
     hFakeRate->GetXaxis()->SetTitle("eta");

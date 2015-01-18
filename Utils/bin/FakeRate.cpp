@@ -2,6 +2,8 @@
 #include <iostream>
 #include <cmath>
 #include <dirent.h>
+#include <time.h>
+#include <iomanip>
 
 // ROOT includes
 #include "TFile.h"
@@ -26,6 +28,20 @@ bool passElectronID(TElectron* elec, const float (&cuts)[10]);
 bool passTightMuonID(TMuon* muon);
 bool passLooseMuonID(TMuon* muon);
 
+// Loadbar: x = iEvent,n = totEvents, w = width
+static inline void loadbar(unsigned int x, unsigned int n, unsigned int r = 20, unsigned int w = 20)
+{
+    if ( x % (n/r+1) != 0 ) return;
+ 
+    float ratio  =  x/(float)n;
+    unsigned int   c      =  ratio * w;
+ 
+    cout << setw(3) << (int)(ratio*100) << "% [";
+    for (unsigned int x=0; x<c; x++) cout << "=";
+    for (unsigned int x=c; x<w; x++) cout << " ";
+    cout << "]\r" << flush;
+}
+
 int main() {
     // ----- Variables to be set --------------
     // Selection
@@ -45,11 +61,11 @@ int main() {
     const float looseElCuts[2][10] = {{0.0181,0.0936,0.0123,0.141,0.0166,0.54342,0.1353,0.24,1e-6,1},{0.0124,0.0642,0.035,0.1115,0.098,0.9187,0.1443,0.3529,1e-6,1}};
     
     // Directories
-    int maxInFiles=20;
+    int maxInFiles=100;
     TString outDirPNG = "/afs/cern.ch/user/j/jlauwers/www/protected/VBS/TP/FakeRate/";
     TString outDirROOT = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/Results/";
-//     TString inDir = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/eos/cms/store/group/dpg_ecal/alca_ecalcalib/ecalMIBI/rgerosa/CSA14/WJetsToLNu_13TeV-madgraph-pythia8-tauola_v3/";
-    TString inDir = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/BaconTrees/";
+    TString inDir = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/eos/cms/store/group/dpg_ecal/alca_ecalcalib/ecalMIBI/rgerosa/CSA14/WJetsToLNu_13TeV-madgraph-pythia8-tauola_v3/";
+//     TString inDir = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/BaconTrees/";
     
     // Constants
     const Float_t pi = 3.1416;
@@ -57,6 +73,10 @@ int main() {
     // Verbose output
     int verbose = 1; // 0: no messages - 3: all debug information 
     // ----------------------------------------
+    
+    // Set timer
+    clock_t t1,t2;
+    t1=clock();
     
     // Add all BaconTrees to a chain
     TChain* tree = new TChain("ntupler/Events");
@@ -95,9 +115,9 @@ int main() {
     if( eJet ) strSel += "_jet_to_e";
     else strSel += "_jet_to_mu";
     
+    TH1::SetDefaultSumw2();
     TH2F *hNum = new TH2F("Numerator_"+strSel,"Numerator_"+strSel,nEtaBins, etaBins, nPtBins, ptBins);
     TH2F *hDenom = new TH2F("Denominator_"+strSel,"Denominator_"+strSel,nEtaBins, etaBins, nPtBins, ptBins);
-    TH1::SetDefaultSumw2();
     
     int lepElec=0, lepMuon=0, jetElec=0, jetMuon=0, l1NotMatched=0, l2NotMatched=0;
     float elecEffDenom=0, elecEffNum=0, muonEffDenom=0, muonEffNum=0;
@@ -106,6 +126,7 @@ int main() {
     int nevents = tree->GetEntries(); // GetEntriesFast fails for chain
     if( verbose > 0 ) cout << "nevents: " << nevents << endl;
     for( int i = 0; i < nevents; ++i ) {
+        if( verbose > 0 ) loadbar(i+1,nevents);
         tree->GetEntry(i);
         int nElectrons = fElectron->GetEntriesFast();
         int nMuons = fMuon->GetEntriesFast();
@@ -325,6 +346,10 @@ int main() {
     hFakeRate->Draw("TEXT E");
     c3->Print(outDirPNG+strTitle+".png","png");
     outFile->Delete();
+    
+    t2=clock();
+    float diff ((float)t2-(float)t1);
+    cout<< " Total runtime: " << diff/CLOCKS_PER_SEC <<endl;
 }
 
 bool passElectronID(TElectron* elec, const float (&cuts)[10] ) {

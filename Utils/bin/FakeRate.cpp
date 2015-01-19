@@ -45,7 +45,7 @@ static inline void loadbar(unsigned int x, unsigned int n, unsigned int r = 20, 
 int main() {
     // ----- Variables to be set --------------
     // Selection
-    bool eLepton = true; // eLepton = true: W -> e
+    bool eLepton = false; // eLepton = true: W -> e
     bool eJet = false; // eJet = true: jet -> e
     bool tightSel = true; // tight or loose lepton selection
     float leptonPt = 20;
@@ -64,7 +64,7 @@ int main() {
 //     const float looseElCuts[2][10] = {{0.0181,0.0936,0.0123,0.141,0.0166,0.54342,0.1353,0.24,1e-6,1},{0.0124,0.0642,0.035,0.1115,0.098,0.9187,0.1443,0.3529,1e-6,1}};
     
     // Directories
-    int maxInFiles=50;
+    int maxInFiles=750;
     TString outDirPNG = "/afs/cern.ch/user/j/jlauwers/www/protected/VBS/TP/FakeRate/";
     TString outDirROOT = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/Results/";
     TString inDir = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/eos/cms/store/group/dpg_ecal/alca_ecalcalib/ecalMIBI/rgerosa/CSA14/WJetsToLNu_13TeV-madgraph-pythia8-tauola_v3/";
@@ -104,7 +104,7 @@ int main() {
     if( verbose > 0 ) cout << "Added " << nFiles << " files to chain." << endl;
     
     tree->SetBranchStatus("*",0);
-    tree->SetBranchStatus("Electron*",1);
+//     tree->SetBranchStatus("Electron*",1);
     tree->SetBranchStatus("Muon*",1);
     tree->SetBranchStatus("Jet05*",1);
     tree->SetBranchStatus("GenParticle*",1);
@@ -255,11 +255,11 @@ int main() {
                 if( tightSel) passSel = elec->pt > leptonPt && passElectronID(elec, tightElCuts[inEndcap] );
                 else passSel = elec->pt > leptonPt && passElectronID(elec, looseElCuts[inEndcap] );
                 if( passSel ) {
-                    if( eLepton && secLeptIndex == -1) secLeptIndex = -2; // skip first electron
-                    else {
+                    if( !eLepton || (leptonEta != elec->eta && leptonPhi != elec->phi) ) { // skip previously matched electron
                         secLeptIndex = iE;
                         if( verbose > 1 ) cout << "Electron " << iE <<" passed lepton id" << endl;
                         jetElec++;
+                        break;
                     }
                 }
             } 
@@ -275,11 +275,11 @@ int main() {
                 if( tightSel) passSel = muon->pt > leptonPt && passTightMuonID(muon);
                 else passSel = muon->pt > leptonPt && passLooseMuonID(muon);
                 if( passSel ) {
-                    if( (!eLepton) && secLeptIndex == -1) secLeptIndex = -2; // skip first muon
-                    else {
+                    if( eLepton || (leptonEta != muon->eta && leptonPhi != muon->phi) ) { // skip previously matched muon
                         secLeptIndex = iM;
                         if( verbose > 1 ) cout << "Muon " << iM <<" passed lepton id" << endl;
-                        jetMuon++;    
+                        jetMuon++;
+                        break;
                     }
                 }
             } 
@@ -325,7 +325,7 @@ int main() {
     }
     
     // -- Calculate and draw fake rate --
-    TFile* outFile = new TFile(outDirROOT+"FakeRate.root","UPDATE");
+    TFile* outFile = new TFile(outDirROOT+"FakeRate_fix.root","UPDATE");
     hNum->Write();
     hDenom->Write();
     

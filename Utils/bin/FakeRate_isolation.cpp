@@ -49,7 +49,7 @@ int main() {
     bool eLepton = true; // eLepton = true: W -> e
     bool eJet = false; // eJet = true: jet -> e
     bool tightSel = true; // tight or loose lepton selection
-    float leptonPt = 10;
+    float leptonPt = 80;
     
     // ID cuts
     // tightElCuts[barrel/endcap][IDcuts], CSA14 selection, conditions: 50ns, poor detector alignment
@@ -60,7 +60,7 @@ int main() {
 //     const float looseElCuts[2][10] = {{0.0181,0.0936,0.0123,0.141,0.0166,0.54342,0.1353,0.24,1e-6,1},{0.0124,0.0642,0.035,0.1115,0.098,0.9187,0.1443,0.3529,1e-6,1}};
     
     // Directories
-    int maxInFiles=20;
+    int maxInFiles=10;
     TString outDirPNG = "/afs/cern.ch/user/j/jlauwers/www/protected/VBS/TP/FakeRate/";
     TString outDirROOT = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/Results/";
     TString inDir = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/eos/cms/store/group/dpg_ecal/alca_ecalcalib/ecalMIBI/rgerosa/CSA14/WJetsToLNu_13TeV-madgraph-pythia8-tauola_v3/";
@@ -96,10 +96,10 @@ int main() {
     }
     if( verbose > 0 ) cout << "Added " << nFiles << " files to chain." << endl;
     
-//     tree->SetBranchStatus("*",0);
-//     tree->SetBranchStatus("Electron*",1);
-//     tree->SetBranchStatus("Muon*",1);
-//     tree->SetBranchStatus("Info*",1);
+    tree->SetBranchStatus("*",0);
+    tree->SetBranchStatus("Electron*",1);
+    tree->SetBranchStatus("Muon*",1);
+    tree->SetBranchStatus("rhoIso",1);
     
     TClonesArray *fElectron = new TClonesArray("baconhep::TElectron");
     TClonesArray *fMuon = new TClonesArray("baconhep::TMuon");
@@ -205,7 +205,7 @@ bool passElectronID(TElectron* elec, const float (&cuts)[10] ) {
             fabs(elec->d0) < cuts[4] &&
             fabs(elec->dz) < cuts[5] &&
 //             fabs(elec->eoverp)  < cuts[6] && // eoverp = E/p  -> missing
-//             ((elec->chHadIso03 + max(elec->gammaIso03+elec->neuHadIso03-0.5* elec->puIso03,0.0))/elec->pt) < cuts[7] &&
+            ((elec->chHadIso03 + max(elec->gammaIso03+elec->neuHadIso03-0.5* elec->puIso03,0.0))/elec->pt) < cuts[7] &&
             (!elec->isConv) &&
             elec->nMissingHits <= cuts[9] );    
 }

@@ -42,7 +42,7 @@ static inline void loadbar(unsigned int x, unsigned int n, unsigned int r = 20, 
     cout << "]\r" << flush;
 }
 
-int main() {
+int main(int argc, char* argv[]) {    
     // ----- Variables to be set --------------
     // Selection
     bool eLepton = false; // eLepton = true: W -> e
@@ -51,20 +51,22 @@ int main() {
     float leptonPt = 20;
     
     // Binning
-    const int nEtaBins = 8, nPtBins = 7;
-    const float etaBins[nEtaBins+1] = {-2.5,-2,-1.5,-1,0,1,1.5,2,2.5};
-    const float ptBins[nPtBins+1] = {0,10,20,30,40,60,100,140};
+    const int nEtaBins = 10, nPtBins = 16;
+    const float etaBins[nEtaBins+1] = {0,0.25,0.5,0.75,1,1.25,1.5,1.75,2,2.25,2.5};
+    const float ptBins[nPtBins+1] = {0,10,20,30,40,50,60,70,80,90,100,120,140,160,180,200,250};
     
     // ID cuts
     // tightElCuts[barrel/endcap][IDcuts], CSA14 selection, conditions: 50ns, poor detector alignment
-    const float tightElCuts[2][10] = {{0.012,0.024,0.01,0.074,0.0091,0.017,0.026,0.10,1e-6,1},{0.019,0.043,0.029,0.08,0.037,0.065,0.076,0.14,1e-6,1}};
+//     const float tightElCuts[2][10] = {{0.012,0.024,0.01,0.074,0.0091,0.017,0.026,0.10,1e-6,1},{0.019,0.043,0.029,0.08,0.037,0.065,0.076,0.14,1e-6,1}};
     const float looseElCuts[2][10] = {{0.0181,0.0936,0.0123,0.141,0.0166,0.54342,0.1353,0.24,1e-6,1},{0.0124,0.0642,0.035,0.1115,0.098,0.9187,0.1443,0.3529,1e-6,1}};    
+    // veto cuts
+    const float tightElCuts[2][10] = {{0.021,0.25,0.012,0.24,0.031,0.5,0.32,0.24,1e-6,2},{0.028,0.23,0.035,0.19,0.22,0.91,0.13,0.24,1e-6,3}}; 
     // CSA14 selection, conditions: 25ns, better detector alignment
 //     const float tightElCuts[2][10] = {{0.0091,0.031,0.0106,0.0532,0.0126,0.0116,0.0609,0.1649,1e-6,1},{0.0106,0.0359,0.0305,0.0835,0.0163,0.5999,0.1126,0.2075,1e-6,1}};
 //     const float looseElCuts[2][10] = {{0.0181,0.0936,0.0123,0.141,0.0166,0.54342,0.1353,0.24,1e-6,1},{0.0124,0.0642,0.035,0.1115,0.098,0.9187,0.1443,0.3529,1e-6,1}};
     
     // Directories
-    int maxInFiles=750;
+    int maxInFiles=5000;
     TString outDirPNG = "/afs/cern.ch/user/j/jlauwers/www/protected/VBS/TP/FakeRate/";
     TString outDirROOT = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/Results/";
     TString inDir = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/eos/cms/store/group/dpg_ecal/alca_ecalcalib/ecalMIBI/rgerosa/CSA14/WJetsToLNu_13TeV-madgraph-pythia8-tauola_v3/";
@@ -74,9 +76,34 @@ int main() {
     const Float_t pi = 3.1416;
     
     // Verbose output
-    int verbose = 1; // 0: no messages - 3: all debug information 
+    int verbose = 1; // 0: no messages - 1: basic output and load bar - 2: calculate lepton efficiency - 3: all debug information 
     // ----------------------------------------
     
+    // Parse command line parameters
+    if (argc < 2) {
+        cout << cout << "Studying W -> " << (eLepton?"e":"mu") << ", jet -> " << (eJet?"e":"mu") << " process" << endl;
+    }
+    else if( string(argv[1]) == "ee" ){
+        eLepton = true;
+        eJet = true;
+        if( verbose > 0 ) cout << "Studying W -> e, jet -> e process" << endl;
+    }
+    else if( string(argv[1]) == "em" ){
+        eLepton = true;
+        eJet = false;
+        if( verbose > 0 ) cout << "Studying W -> e, jet -> mu process" << endl;
+    }
+    else if( string(argv[1]) == "me" ){
+        eLepton = false;
+        eJet = true;
+        if( verbose > 0 ) cout << "Studying W -> mu, jet -> e process" << endl;
+    }
+    else if( string(argv[1]) == "mm" ){
+        eLepton = false;
+        eJet = false;
+        if( verbose > 0 ) cout << "Studying W -> mu, jet -> mu process" << endl;
+    }
+        
     // Set timer
     clock_t t1,t2;
     t1=clock();
@@ -104,7 +131,7 @@ int main() {
     if( verbose > 0 ) cout << "Added " << nFiles << " files to chain." << endl;
     
     tree->SetBranchStatus("*",0);
-//     tree->SetBranchStatus("Electron*",1);
+    tree->SetBranchStatus("Electron*",1);
     tree->SetBranchStatus("Muon*",1);
     tree->SetBranchStatus("Jet05*",1);
     tree->SetBranchStatus("GenParticle*",1);
@@ -125,7 +152,8 @@ int main() {
     else strSel += "_jet_to_mu";
     
     TH1::SetDefaultSumw2();
-    TH2F *hNum = new TH2F("Numerator_"+strSel,"Numerator_"+strSel,nEtaBins, etaBins, nPtBins, ptBins);
+    TH2F *hJetNum = new TH2F("Jet_Numerator_"+strSel,"Jet_Numerator_"+strSel,nEtaBins, etaBins, nPtBins, ptBins);
+    TH2F *hLeptNum = new TH2F("Lepton_Numerator_"+strSel,"Lepton_Numerator_"+strSel,nEtaBins, etaBins, nPtBins, ptBins);
     TH2F *hDenom = new TH2F("Denominator_"+strSel,"Denominator_"+strSel,nEtaBins, etaBins, nPtBins, ptBins);
     
     int lepElec=0, lepMuon=0, jetElec=0, jetMuon=0, l1NotMatched=0, l2NotMatched=0;
@@ -142,7 +170,7 @@ int main() {
         if( verbose > 2 ) cout << "nElectrons: " << nElectrons << ", nMuons: " << nMuons << endl;
         
         // Calculate lepton efficiencies
-        if( verbose > 0 ) {
+        if( verbose > 1 ) {
             for( int iE = 0; iE < nElectrons; ++iE ) {
                 TElectron *elec = (TElectron*)((*fElectron)[iE]);
                 if( fabs(elec->eta) < 2.5 && elec->pt > leptonPt) {
@@ -179,7 +207,7 @@ int main() {
                 if( tightSel) passSel = elec->pt > leptonPt && passElectronID(elec, tightElCuts[inEndcap] );
                 else passSel = elec->pt > leptonPt && passElectronID(elec, looseElCuts[inEndcap] );
                 if( passSel ) {
-                    if( verbose > 1 ) cout << "Electron " << iE <<" passed lepton id" << endl;
+                    if( verbose > 2 ) cout << "Electron " << iE <<" passed lepton id" << endl;
                     l1NotMatched++;
                     
                     // Match with genParticle
@@ -192,7 +220,7 @@ int main() {
                                 passFullSel = true;
                                 leptonEta = elec->eta;
                                 leptonPhi = elec->phi;
-                                if( verbose > 1 ) cout << "Matched with genElecton" << endl;
+                                if( verbose > 2 ) cout << "Matched with genElecton" << endl;
                                 lepElec++;
                                 l1NotMatched--;
                                 break;
@@ -215,7 +243,7 @@ int main() {
                 if( tightSel) passSel = muon->pt > leptonPt && passTightMuonID(muon);
                 else passSel =  muon->pt > leptonPt && passLooseMuonID(muon);
                 if( passSel ) {
-                    if( verbose > 1 ) cout << "Muon " << iM << " passed lepton id" << endl;
+                    if( verbose > 2 ) cout << "Muon " << iM << " passed lepton id" << endl;
                     l1NotMatched++;
                     
                     // Match with genParticle
@@ -228,7 +256,7 @@ int main() {
                                 passFullSel = true;
                                 leptonEta = muon->eta;
                                 leptonPhi = muon->phi;
-                                if( verbose > 1 ) cout << "Matched with genMuon" << endl;
+                                if( verbose > 2 ) cout << "Matched with genMuon" << endl;
                                 lepMuon++;
                                 l1NotMatched--;
                                 break;
@@ -257,7 +285,7 @@ int main() {
                 if( passSel ) {
                     if( !eLepton || (leptonEta != elec->eta && leptonPhi != elec->phi) ) { // skip previously matched electron
                         secLeptIndex = iE;
-                        if( verbose > 1 ) cout << "Electron " << iE <<" passed lepton id" << endl;
+                        if( verbose > 2 ) cout << "Electron " << iE <<" passed lepton id" << endl;
                         jetElec++;
                         break;
                     }
@@ -277,7 +305,7 @@ int main() {
                 if( passSel ) {
                     if( eLepton || (leptonEta != muon->eta && leptonPhi != muon->phi) ) { // skip previously matched muon
                         secLeptIndex = iM;
-                        if( verbose > 1 ) cout << "Muon " << iM <<" passed lepton id" << endl;
+                        if( verbose > 2 ) cout << "Muon " << iM <<" passed lepton id" << endl;
                         jetMuon++;
                         break;
                     }
@@ -297,15 +325,17 @@ int main() {
             if( dR < 0.3 ) continue;
             
             // Fill histograms
-            hDenom->Fill(jet->eta, jet->pt);
+            hDenom->Fill(abs(jet->eta), jet->pt);
             if( secLeptIndex >= 0 ) {
                 Double_t dR;
                 if(eJet) dR = TMath::Sqrt( TMath::Power(elec->eta - jet->eta, 2) + TMath::Power(abs(abs(elec->phi - jet->phi)-pi)-pi, 2) );
                 else dR = TMath::Sqrt( TMath::Power(muon->eta - jet->eta, 2) + TMath::Power(abs(abs(muon->phi - jet->phi)-pi)-pi, 2) );
                 if( dR < 0.3 ) {
-                    hNum->Fill(jet->eta, jet->pt);
+                    if(eJet) hLeptNum->Fill(abs(elec->eta), elec->pt);
+                    else hLeptNum->Fill(abs(muon->eta), muon->pt);
+                    hJetNum->Fill(abs(jet->eta), jet->pt);
                     secLeptIndex = -1; // match with only 1 jet
-                    if( verbose > 1 ) cout << "Matched with jet" << endl;
+                    if( verbose > 2 ) cout << "Matched with jet" << endl;
                 }                
             }
         }
@@ -315,47 +345,62 @@ int main() {
         }
     }    
     
-    // Verbose output
-    if( verbose > 0 ) {
-        cout << "Electron efficiency: " << elecEffNum/elecEffDenom << ", Muon efficiency: " << muonEffNum/muonEffDenom << endl;
-        cout << "# elec1 passing sel: " << lepElec << ", # muons1 passing sel: " << lepMuon << endl;
-        cout << "# elec2 passing sel: " << jetElec << ", # muons2 passing sel: " << jetMuon << endl;
-        cout << "lep1 not matched with gen: " << l1NotMatched << ", lep2 not matched with jet: " << l2NotMatched << endl;
-        cout << "Total fake rate: " << hNum->Integral()/hDenom->Integral() << endl;
-    }
+    // Output
+    cout << "Electron efficiency: " << elecEffNum/elecEffDenom << ", Muon efficiency: " << muonEffNum/muonEffDenom << endl;
+    cout << "# elec1 passing sel: " << lepElec << ", # muons1 passing sel: " << lepMuon << endl;
+    cout << "# elec2 passing sel: " << jetElec << ", # muons2 passing sel: " << jetMuon << endl;
+    cout << "lep1 not matched with gen: " << l1NotMatched << ", lep2 not matched with jet: " << l2NotMatched << endl;
+    cout << "Total fake rate: " << hJetNum->Integral()/hDenom->Integral() << endl;
+    
     
     // -- Calculate and draw fake rate --
-    TFile* outFile = new TFile(outDirROOT+"FakeRate_fix.root","UPDATE");
-    hNum->Write();
+    TFile* outFile = new TFile(outDirROOT+"FakeRate.root","UPDATE");
+    hLeptNum->Write();
+    hJetNum->Write();
     hDenom->Write();
     
     TString strTitle = "Fake_rate_";
     strTitle += strSel;
     
-    TH2F *hFakeRate = (TH2F*) hNum->Clone(strTitle);
-    hFakeRate->Divide(hDenom);
-    hFakeRate->SetTitle(strTitle);
-    hFakeRate->Write();
+    TH2F *hLeptFakeRate = (TH2F*) hLeptNum->Clone(strTitle+"_leptNum");
+    hLeptFakeRate->Divide(hDenom);
+    hLeptFakeRate->SetTitle(strTitle+"_leptNum");
+    
+    TH2F *hJetFakeRate = (TH2F*) hJetNum->Clone(strTitle+"_jetNum");
+    hJetFakeRate->Divide(hDenom);
+    hJetFakeRate->SetTitle(strTitle+"_jetNum");
     
     TCanvas *c1 = new TCanvas("c1","c1");
-    TH1D *hFakeRate_eta =  hFakeRate->ProjectionX(strTitle+"_eta", 0, -1, "e");
-    hFakeRate_eta->GetXaxis()->SetTitle("eta");
-    hFakeRate_eta->Draw();
-    c1->Print(outDirPNG+strTitle+"_eta.png","png");
-    hFakeRate_eta->Write();
+    TH1D *hJetFakeRate_eta =  hJetNum->ProjectionX(strTitle+"_jetNum_eta", 0, -1, "e");
+    TH1D *hDenom_eta =  hDenom->ProjectionX("Denominator_jetNum_eta", 0, -1, "e");
+    hJetFakeRate_eta->Divide(hDenom_eta);
+    hJetFakeRate_eta->GetXaxis()->SetTitle("eta");
+    hJetFakeRate_eta->Draw();
+    c1->Print(outDirPNG+strTitle+"_jetNum_eta.png","png");
+    hJetFakeRate_eta->Write();
     
     TCanvas *c2 = new TCanvas("c2","c2");
-    TH1D *hFakeRate_pt =  hFakeRate->ProjectionY(strTitle+"_pt", 0, -1, "e");
-    hFakeRate_pt->GetXaxis()->SetTitle("pt");
-    hFakeRate_pt->Draw();
-    c2->Print(outDirPNG+strTitle+"_pt.png","png");
-    hFakeRate_pt->Write();
+    TH1D *hJetFakeRate_pt =  hJetNum->ProjectionY(strTitle+"_jetNum_pt", 0, -1, "e");
+    TH1D *hDenom_pt =  hDenom->ProjectionY("Denominator_jetNum_pt", 0, -1, "e");
+    hJetFakeRate_pt->Divide(hDenom_pt);
+    hJetFakeRate_pt->GetXaxis()->SetTitle("pt");
+    hJetFakeRate_pt->Draw();
+    c2->Print(outDirPNG+strTitle+"_jetNum_pt.png","png");
+    hJetFakeRate_pt->Write();
     
     TCanvas *c3 = new TCanvas("c3","c3");
-    hFakeRate->GetXaxis()->SetTitle("eta");
-    hFakeRate->GetYaxis()->SetTitle("pt");
-    hFakeRate->Draw("TEXT E");
-    c3->Print(outDirPNG+strTitle+".png","png");
+    hLeptFakeRate->GetXaxis()->SetTitle("eta");
+    hLeptFakeRate->GetYaxis()->SetTitle("pt");
+    hLeptFakeRate->Draw("TEXT E");
+    c3->Print(outDirPNG+strTitle+"_leptNum"+".png","png");
+    hLeptFakeRate->Write();
+    
+    TCanvas *c4 = new TCanvas("c4","c4");
+    hJetFakeRate->GetXaxis()->SetTitle("eta");
+    hJetFakeRate->GetYaxis()->SetTitle("pt");
+    hJetFakeRate->Draw("TEXT E");
+    c4->Print(outDirPNG+strTitle+"_jetNum"+".png","png");
+    hJetFakeRate->Write();
     outFile->Delete();
     
     t2=clock();
@@ -363,7 +408,7 @@ int main() {
     cout<< " Total runtime: " << diff/CLOCKS_PER_SEC <<endl;
 }
 
-bool passElectronID(TElectron* elec, const float (&cuts)[10] ) {
+bool passElectronID(TElectron* elec, const float (&cuts)[10] ) {  
     return( fabs(elec->dEtaIn) < cuts[0] &&
             fabs(elec->dPhiIn) < cuts[1] &&
             elec->sieie  < cuts[2] &&
@@ -371,9 +416,10 @@ bool passElectronID(TElectron* elec, const float (&cuts)[10] ) {
             fabs(elec->d0) < cuts[4] &&
             fabs(elec->dz) < cuts[5] &&
 //             fabs(elec->eoverp)  < cuts[6] && // eoverp = E/p  -> missing
-            ((elec->chHadIso03 + max(elec->gammaIso03+elec->neuHadIso03-0.5* elec->puIso03,0.0))/elec->pt) < cuts[7] &&
+            ((elec->chHadIso03 + max(elec->gammaIso03+elec->neuHadIso03-0.5* elec->puIso03,0.0))/elec->pt) < cuts[7] && // electron iso
             (!elec->isConv) &&
-            elec->nMissingHits <= cuts[9] );    
+            elec->nMissingHits <= cuts[9] 
+          );    
 }
 
 bool passTightMuonID(TMuon* muon) {
@@ -385,12 +431,16 @@ bool passTightMuonID(TMuon* muon) {
             fabs(muon->d0) < 0.2 && // d0 = -dxy
             fabs(muon->dz) < 0.5 &&
             muon->nPixHits > 0 &&
-            muon->nTkLayers > 5 );  
+            muon->nTkLayers > 5 &&
+           ((muon->chHadIso04 + max(muon->gammaIso04+muon->neuHadIso04-0.5* muon->puIso04,0.0))/muon->pt) < 0.2 // muon iso  
+    );  
 }
 
 bool passLooseMuonID(TMuon* muon) {
     return( ((muon->typeBits)/32)%2 &&
-            ( ((muon->typeBits)/2)%2 || ((muon->typeBits)/4)%2 ) );
+            ( ((muon->typeBits)/2)%2 || ((muon->typeBits)/4)%2 ) &&
+            ((muon->chHadIso04 + max(muon->gammaIso04+muon->neuHadIso04-0.5* muon->puIso04,0.0))/muon->pt) < 0.2 // muon iso  
+          );
 }
         
         

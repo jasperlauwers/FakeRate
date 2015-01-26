@@ -51,9 +51,16 @@ int main(int argc, char* argv[]) {
     float leptonPt = 20;
     
     // Binning
-    const int nEtaBins = 10, nPtBins = 16;
-    const float etaBins[nEtaBins+1] = {0,0.25,0.5,0.75,1,1.25,1.5,1.75,2,2.25,2.5};
-    const float ptBins[nPtBins+1] = {0,10,20,30,40,50,60,70,80,90,100,120,140,160,180,200,250};
+//     const int nEtaBins = 10, nPtBins = 16;
+//     const float etaBins[nEtaBins+1] = {0,0.25,0.5,0.75,1,1.25,1.5,1.75,2,2.25,2.5};
+//     const float ptBins[nPtBins+1] = {0,10,20,30,40,50,60,70,80,90,100,120,140,160,180,200,250};
+    const int nEtaBinsEl = 6, nPtBinsEl = 10;
+    const float etaBinsEl[nEtaBinsEl+1] = {0,0.5,1,1.5,1.75,2,2.5};
+    const float ptBinsEl[nPtBinsEl+1] = {20,30,40,50,60,80,100,130,170,220,300};
+    const int nEtaBinsMu = 4, nPtBinsMu = 3;
+    const float etaBinsMu[nEtaBinsMu+1] = {0,0.75,1.5,2,2.5};
+    const float ptBinsMu[nPtBinsMu+1] = {20,30,50,120};
+    const float ptBinsMujet[nPtBinsMu+1] = {20,40,60,160};
     
     // ID cuts
     // tightElCuts[barrel/endcap][IDcuts], CSA14 selection, conditions: 50ns, poor detector alignment
@@ -67,7 +74,7 @@ int main(int argc, char* argv[]) {
     
     // Directories
     int maxInFiles=5000;
-    TString outDirPNG = "/afs/cern.ch/user/j/jlauwers/www/protected/VBS/TP/FakeRate/";
+    TString outDirPNG = "/afs/cern.ch/user/j/jlauwers/www/protected/VBS/TP/FakeRate_rebin/";
     TString outDirROOT = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/Results/";
     TString inDir = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/eos/cms/store/group/dpg_ecal/alca_ecalcalib/ecalMIBI/rgerosa/CSA14/WJetsToLNu_13TeV-madgraph-pythia8-tauola_v3/";
 //     TString inDir = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/BaconTrees/";
@@ -152,12 +159,25 @@ int main(int argc, char* argv[]) {
     else strSel += "_jet_to_mu";
     
     TH1::SetDefaultSumw2();
-    TH2F *hJetNum = new TH2F("Jet_Numerator_"+strSel,"Jet_Numerator_"+strSel,nEtaBins, etaBins, nPtBins, ptBins);
-    TH2F *hLeptNum = new TH2F("Lepton_Numerator_"+strSel,"Lepton_Numerator_"+strSel,nEtaBins, etaBins, nPtBins, ptBins);
-    TH2F *hDenom = new TH2F("Denominator_"+strSel,"Denominator_"+strSel,nEtaBins, etaBins, nPtBins, ptBins);
+    TH2F *hJetNum, *hLeptNum, *hDenom, *hDenomJet=0;
+    if( eJet ) {
+        hJetNum= new TH2F("Jet_Numerator_"+strSel,"Jet_Numerator_"+strSel,nEtaBinsEl, etaBinsEl, nPtBinsEl, ptBinsEl);
+        hLeptNum = new TH2F("Lepton_Numerator_"+strSel,"Lepton_Numerator_"+strSel,nEtaBinsEl, etaBinsEl, nPtBinsEl, ptBinsEl);
+        hDenom = new TH2F("Denominator_"+strSel,"Denominator_"+strSel,nEtaBinsEl, etaBinsEl, nPtBinsEl, ptBinsEl);
+    }
+    else {
+        hJetNum= new TH2F("Jet_Numerator_"+strSel,"Jet_Numerator_"+strSel,nEtaBinsMu, etaBinsMu, nPtBinsMu, ptBinsMujet);
+        hLeptNum = new TH2F("Lepton_Numerator_"+strSel,"Lepton_Numerator_"+strSel,nEtaBinsMu, etaBinsMu, nPtBinsMu, ptBinsMu);
+        hDenom = new TH2F("Denominator_"+strSel,"Denominator_"+strSel,nEtaBinsMu, etaBinsMu, nPtBinsMu, ptBinsMu);
+        hDenomJet = new TH2F("Jet_Denominator_"+strSel,"Jet_Denominator_"+strSel,nEtaBinsMu, etaBinsMu, nPtBinsMu, ptBinsMujet);
+    }
+    TH2F *hPtMigration;
+    if( eJet ) hPtMigration = new TH2F("Pt_migration_"+strSel,"Pt_migration_"+strSel,nPtBinsEl, ptBinsEl, 14, -50,20);
+    else hPtMigration = new TH2F("Pt_migration_"+strSel,"Pt_migration_"+strSel,nPtBinsMu, ptBinsMujet, nPtBinsMu, ptBinsMujet);
     
     int lepElec=0, lepMuon=0, jetElec=0, jetMuon=0, l1NotMatched=0, l2NotMatched=0;
     float elecEffDenom=0, elecEffNum=0, muonEffDenom=0, muonEffNum=0;
+    int jetlep2GenMatch=0, wLept=0;
     
     // Loop over events
     int nevents = tree->GetEntries(); // GetEntriesFast fails for chain
@@ -217,13 +237,27 @@ int main(int argc, char* argv[]) {
                         if( abs(genP->pdgId) == 11) {
                             Double_t dR = TMath::Sqrt( TMath::Power(genP->eta - elec->eta, 2) + TMath::Power(abs(abs(genP->phi - elec->phi)-pi)-pi, 2) );
                             if( dR < 0.3 ) {
-                                passFullSel = true;
-                                leptonEta = elec->eta;
-                                leptonPhi = elec->phi;
-                                if( verbose > 2 ) cout << "Matched with genElecton" << endl;
                                 lepElec++;
-                                l1NotMatched--;
-                                break;
+                                if( verbose > 2 ) cout << "Matched with genElectron" << endl;
+                                
+                                // Look for a corresponding neutrino to get the W mass
+                                int nPdgId = (genP->pdgId==11)?-12:12;
+                                for( int iG2 = 0; iG2 < nGenParticles; ++iG2 ) {
+                                    TGenParticle *genP2 = (TGenParticle*)((*fGenParticle)[iG2]); 
+                                    if( genP2->pdgId == nPdgId) {
+                                        Double_t invMass = sqrt(2*genP->pt*genP2->pt*(cosh(genP->eta-genP2->eta)-cos(genP->phi-genP2->phi)));
+                                        if( invMass>65 && invMass<95 ) {
+                                            passFullSel = true;
+                                            leptonEta = elec->eta;
+                                            leptonPhi = elec->phi;
+                                            if( verbose > 2 ) cout << "Matched with W boson" << endl;
+                                            wLept++;
+                                            l1NotMatched--;
+                                            break;                                            
+                                        }
+                                    }
+                                }
+                                if( passFullSel ) break; // first pt genlepton
                             }
                         }
                     }
@@ -253,13 +287,27 @@ int main(int argc, char* argv[]) {
                         if( abs(genP->pdgId) == 13) {
                             Double_t dR = TMath::Sqrt( TMath::Power(genP->eta - muon->eta, 2) + TMath::Power(abs(abs(genP->phi - muon->phi)-pi)-pi, 2) );
                             if( dR < 0.3 ) {
-                                passFullSel = true;
-                                leptonEta = muon->eta;
-                                leptonPhi = muon->phi;
-                                if( verbose > 2 ) cout << "Matched with genMuon" << endl;
                                 lepMuon++;
-                                l1NotMatched--;
-                                break;
+                                if( verbose > 2 ) cout << "Matched with genMuon" << endl;
+                                
+                                // Look for a corresponding neutrino to get the W mass
+                                int nPdgId = (genP->pdgId==13)?-14:14;
+                                for( int iG2 = 0; iG2 < nGenParticles; ++iG2 ) {
+                                    TGenParticle *genP2 = (TGenParticle*)((*fGenParticle)[iG2]); 
+                                    if( genP2->pdgId == nPdgId) {
+                                        Double_t invMass = sqrt(2*genP->pt*genP2->pt*(cosh(genP->eta-genP2->eta)-cos(genP->phi-genP2->phi)));
+                                        if( invMass>65 && invMass<95 ) {
+                                            passFullSel = true;
+                                            leptonEta = muon->eta;
+                                            leptonPhi = muon->phi;
+                                            if( verbose > 2 ) cout << "Matched with W boson" << endl;
+                                            wLept++;
+                                            l1NotMatched--;
+                                            break;                                            
+                                        }
+                                    }
+                                }
+                                if( passFullSel ) break; // first pt genlepton
                             }
                         }
                     }
@@ -287,6 +335,21 @@ int main(int argc, char* argv[]) {
                         secLeptIndex = iE;
                         if( verbose > 2 ) cout << "Electron " << iE <<" passed lepton id" << endl;
                         jetElec++;
+                        
+                        // Match with genparticle
+                        int nGenParticles = fGenParticle->GetEntriesFast();
+                        for( int iG = 0; iG < nGenParticles; ++iG ) {
+                            TGenParticle *genP = (TGenParticle*)((*fGenParticle)[iG]); 
+                            if( abs(genP->pdgId) == 11) {
+                                Double_t dR = TMath::Sqrt( TMath::Power(genP->eta - elec->eta, 2) + TMath::Power(abs(abs(genP->phi - elec->phi)-pi)-pi, 2) );
+                                if( dR < 0.3 ) {
+                                    if( verbose > 2 ) cout << "Jet electron matched with genElecton" << endl;
+                                    jetlep2GenMatch++;
+                                    break;
+                                }
+                            }
+                        }
+                        
                         break;
                     }
                 }
@@ -307,6 +370,21 @@ int main(int argc, char* argv[]) {
                         secLeptIndex = iM;
                         if( verbose > 2 ) cout << "Muon " << iM <<" passed lepton id" << endl;
                         jetMuon++;
+                        
+                        // Match with genparticle
+                        int nGenParticles = fGenParticle->GetEntriesFast();
+                        for( int iG = 0; iG < nGenParticles; ++iG ) {
+                            TGenParticle *genP = (TGenParticle*)((*fGenParticle)[iG]); 
+                            if( abs(genP->pdgId) == 13) {
+                                Double_t dR = TMath::Sqrt( TMath::Power(genP->eta - muon->eta, 2) + TMath::Power(abs(abs(genP->phi - muon->phi)-pi)-pi, 2) );
+                                if( dR < 0.3 ) {
+                                    if( verbose > 2 ) cout << "Jet muon matched with gen muon" << endl;
+                                    jetlep2GenMatch++;
+                                    break;
+                                }
+                            }
+                        }
+                        
                         break;
                     }
                 }
@@ -326,13 +404,20 @@ int main(int argc, char* argv[]) {
             
             // Fill histograms
             hDenom->Fill(abs(jet->eta), jet->pt);
+            if( !eJet ) hDenomJet->Fill(abs(jet->eta), jet->pt);
             if( secLeptIndex >= 0 ) {
                 Double_t dR;
                 if(eJet) dR = TMath::Sqrt( TMath::Power(elec->eta - jet->eta, 2) + TMath::Power(abs(abs(elec->phi - jet->phi)-pi)-pi, 2) );
                 else dR = TMath::Sqrt( TMath::Power(muon->eta - jet->eta, 2) + TMath::Power(abs(abs(muon->phi - jet->phi)-pi)-pi, 2) );
                 if( dR < 0.3 ) {
-                    if(eJet) hLeptNum->Fill(abs(elec->eta), elec->pt);
-                    else hLeptNum->Fill(abs(muon->eta), muon->pt);
+                    if(eJet) {
+                        hLeptNum->Fill(abs(elec->eta), elec->pt);
+                        hPtMigration->Fill(jet->pt, elec->pt - jet->pt);
+                    }
+                    else {
+                        hLeptNum->Fill(abs(muon->eta), muon->pt);
+                        hPtMigration->Fill(jet->pt, muon->pt - jet->pt);
+                    }
                     hJetNum->Fill(abs(jet->eta), jet->pt);
                     secLeptIndex = -1; // match with only 1 jet
                     if( verbose > 2 ) cout << "Matched with jet" << endl;
@@ -347,17 +432,21 @@ int main(int argc, char* argv[]) {
     
     // Output
     cout << "Electron efficiency: " << elecEffNum/elecEffDenom << ", Muon efficiency: " << muonEffNum/muonEffDenom << endl;
-    cout << "# elec1 passing sel: " << lepElec << ", # muons1 passing sel: " << lepMuon << endl;
+    cout << "# elec1 passing sel and matched to gen electron: " << lepElec << ", # muons1 passing sel and matched to gen muon: " << lepMuon << endl;
     cout << "# elec2 passing sel: " << jetElec << ", # muons2 passing sel: " << jetMuon << endl;
-    cout << "lep1 not matched with gen: " << l1NotMatched << ", lep2 not matched with jet: " << l2NotMatched << endl;
+    cout << "lep1 not matched with W: " << l1NotMatched << ", lep2 not matched with W: " << l2NotMatched << endl;
+    cout << "lep1 matched to W: " << wLept << endl;
+    cout << "lept2 matched with a gen lepton: " << jetlep2GenMatch << endl;
     cout << "Total fake rate: " << hJetNum->Integral()/hDenom->Integral() << endl;
     
     
     // -- Calculate and draw fake rate --
-    TFile* outFile = new TFile(outDirROOT+"FakeRate.root","UPDATE");
+    TFile* outFile = new TFile(outDirROOT+"FakeRate_rebin.root","UPDATE");
     hLeptNum->Write();
     hJetNum->Write();
     hDenom->Write();
+    if( !eJet )hDenomJet->Write();
+    hPtMigration->Write();
     
     TString strTitle = "Fake_rate_";
     strTitle += strSel;
@@ -391,14 +480,14 @@ int main(int argc, char* argv[]) {
     TCanvas *c3 = new TCanvas("c3","c3");
     hLeptFakeRate->GetXaxis()->SetTitle("eta");
     hLeptFakeRate->GetYaxis()->SetTitle("pt");
-    hLeptFakeRate->Draw("TEXT E");
+    hLeptFakeRate->Draw("TEXT");
     c3->Print(outDirPNG+strTitle+"_leptNum"+".png","png");
     hLeptFakeRate->Write();
     
     TCanvas *c4 = new TCanvas("c4","c4");
     hJetFakeRate->GetXaxis()->SetTitle("eta");
     hJetFakeRate->GetYaxis()->SetTitle("pt");
-    hJetFakeRate->Draw("TEXT E");
+    hJetFakeRate->Draw("TEXT");
     c4->Print(outDirPNG+strTitle+"_jetNum"+".png","png");
     hJetFakeRate->Write();
     outFile->Delete();

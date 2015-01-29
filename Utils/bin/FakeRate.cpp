@@ -55,12 +55,12 @@ int main(int argc, char* argv[]) {
 //     const float etaBins[nEtaBins+1] = {0,0.25,0.5,0.75,1,1.25,1.5,1.75,2,2.25,2.5};
 //     const float ptBins[nPtBins+1] = {0,10,20,30,40,50,60,70,80,90,100,120,140,160,180,200,250};
     const int nEtaBinsEl = 6, nPtBinsEl = 10;
-    const float etaBinsEl[nEtaBinsEl+1] = {0,0.5,1,1.5,1.75,2,2.5};
-    const float ptBinsEl[nPtBinsEl+1] = {20,30,40,50,60,80,100,130,170,220,300};
+    const Double_t etaBinsEl[nEtaBinsEl+1] = {0,0.5,1,1.5,1.75,2,2.5};
+    const Double_t ptBinsEl[nPtBinsEl+1] = {20,30,40,50,60,80,100,130,170,220,300};
     const int nEtaBinsMu = 4, nPtBinsMu = 3;
-    const float etaBinsMu[nEtaBinsMu+1] = {0,0.75,1.5,2,2.5};
-    const float ptBinsMu[nPtBinsMu+1] = {20,30,50,120};
-    const float ptBinsMujet[nPtBinsMu+1] = {20,40,60,160};
+    const Double_t etaBinsMu[nEtaBinsMu+1] = {0,0.75,1.5,2,2.5};
+    const Double_t ptBinsMu[nPtBinsMu+1] = {20,30,50,120};
+    const Double_t ptBinsMujet[nPtBinsMu+1] = {20,40,60,160};
     
     // ID cuts
     // tightElCuts[barrel/endcap][IDcuts], CSA14 selection, conditions: 50ns, poor detector alignment
@@ -172,8 +172,8 @@ int main(int argc, char* argv[]) {
         hDenomJet = new TH2F("Jet_Denominator_"+strSel,"Jet_Denominator_"+strSel,nEtaBinsMu, etaBinsMu, nPtBinsMu, ptBinsMujet);
     }
     TH2F *hPtMigration;
-    if( eJet ) hPtMigration = new TH2F("Pt_migration_"+strSel,"Pt_migration_"+strSel,nPtBinsEl, ptBinsEl, 14, -50,20);
-    else hPtMigration = new TH2F("Pt_migration_"+strSel,"Pt_migration_"+strSel,nPtBinsMu, ptBinsMujet, nPtBinsMu, ptBinsMujet);
+    if( eJet ) hPtMigration = new TH2F("Pt_migration_"+strSel,"Pt_migration_"+strSel,nPtBinsEl, ptBinsEl, 14, -50., 20.);
+    else hPtMigration = new TH2F("Pt_migration_"+strSel,"Pt_migration_"+strSel,nPtBinsMu, ptBinsMujet, 14, -50., 20.);
     
     int lepElec=0, lepMuon=0, jetElec=0, jetMuon=0, l1NotMatched=0, l2NotMatched=0;
     float elecEffDenom=0, elecEffNum=0, muonEffDenom=0, muonEffNum=0;

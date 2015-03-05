@@ -1,6 +1,7 @@
 // C++ includes
 #include <iostream>
 #include <cmath>
+#include <vector>
 #include <dirent.h>
 #include <time.h>
 #include <iomanip>
@@ -46,7 +47,6 @@ static inline void loadbar(unsigned int x, unsigned int n, unsigned int r = 20, 
 int main(int argc, char* argv[]) {    
     // ----- Variables to be set --------------
     // Selection
-    bool eLepton = true; // eLepton = true: W -> e
     bool eJet = true; // eJet = true: jet -> e
     bool tightSel = true; // tight or loose lepton selection
     float leptonPt = 20;
@@ -64,20 +64,15 @@ int main(int argc, char* argv[]) {
     const Double_t ptBinsMujet[nPtBinsMu+1] = {20,40,60,160};
     
     // ID cuts
-    // tightElCuts[barrel/endcap][IDcuts], CSA14 selection, conditions: 50ns, poor detector alignment
-//     const float tightElCuts[2][10] = {{0.012,0.024,0.01,0.074,0.0091,0.017,0.026,0.10,1e-6,1},{0.019,0.043,0.029,0.08,0.037,0.065,0.076,0.14,1e-6,1}};
-    const float looseElCuts[2][10] = {{0.0181,0.0936,0.0123,0.141,0.0166,0.54342,0.1353,0.24,1e-6,1},{0.0124,0.0642,0.035,0.1115,0.098,0.9187,0.1443,0.3529,1e-6,1}};    
+    const float looseElCuts[2][10] = {{0.004,0.06,0.01,0.12,0.02,0.1,0.05,0.15,1e-6,1},{0.007,0.03,0.03,0.1,0.02,0.1,0.05,0.15,1e-6,1}};    
     // veto cuts
-    const float tightElCuts[2][10] = {{0.021,0.25,0.012,0.24,0.031,0.5,0.32,0.24,1e-6,2},{0.028,0.23,0.035,0.19,0.22,0.91,0.13,0.24,1e-6,3}}; 
-    // CSA14 selection, conditions: 25ns, better detector alignment
-//     const float tightElCuts[2][10] = {{0.0091,0.031,0.0106,0.0532,0.0126,0.0116,0.0609,0.1649,1e-6,1},{0.0106,0.0359,0.0305,0.0835,0.0163,0.5999,0.1126,0.2075,1e-6,1}};
-//     const float looseElCuts[2][10] = {{0.0181,0.0936,0.0123,0.141,0.0166,0.54342,0.1353,0.24,1e-6,1},{0.0124,0.0642,0.035,0.1115,0.098,0.9187,0.1443,0.3529,1e-6,1}};
+    const float tightElCuts[2][10] = {{0.004,0.03,0.01,0.12,0.02,0.1,0.05,0.1,1e-6,0},{0.005,0.02,0.03,0.1,0.02,0.1,0.05,0.1,1e-6,0}};
     
     // Directories
-    int maxInFiles=5000;
+    int maxInFiles=250;
     TString outDirPNG = "/afs/cern.ch/user/j/jlauwers/www/protected/VBS/TP/FakeRate_rebin/";
     TString outDirROOT = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/Results/";
-    TString inDir = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/eos/cms/store/group/dpg_ecal/alca_ecalcalib/ecalMIBI/rgerosa/CSA14/WJetsToLNu_13TeV-madgraph-pythia8-tauola_v3/";
+    TString inDir = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/eos/cms/store/group/upgrade/delphes/VBS_FakeRate/TTJets_MassiveBinDECAY_TuneZ2star_8TeV/";
 //     TString inDir = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/BaconTrees/";
     
     // Constants
@@ -89,27 +84,15 @@ int main(int argc, char* argv[]) {
     
     // Parse command line parameters
     if (argc < 2) {
-        cout << cout << "Studying W -> " << (eLepton?"e":"mu") << ", jet -> " << (eJet?"e":"mu") << " process" << endl;
+        cout << cout << "Studying jet -> " << (eJet?"e":"mu") << " process" << endl;
     }
-    else if( string(argv[1]) == "ee" ){
-        eLepton = true;
+    else if( string(argv[1]) == "e" ){
         eJet = true;
-        if( verbose > 0 ) cout << "Studying W -> e, jet -> e process" << endl;
+        if( verbose > 0 ) cout << "Studying jet -> e process" << endl;
     }
-    else if( string(argv[1]) == "em" ){
-        eLepton = true;
+    else if( string(argv[1]) == "m" ){
         eJet = false;
-        if( verbose > 0 ) cout << "Studying W -> e, jet -> mu process" << endl;
-    }
-    else if( string(argv[1]) == "me" ){
-        eLepton = false;
-        eJet = true;
-        if( verbose > 0 ) cout << "Studying W -> mu, jet -> e process" << endl;
-    }
-    else if( string(argv[1]) == "mm" ){
-        eLepton = false;
-        eJet = false;
-        if( verbose > 0 ) cout << "Studying W -> mu, jet -> mu process" << endl;
+        if( verbose > 0 ) cout << "Studying jet -> mu process" << endl;
     }
         
     // Set timer
@@ -117,7 +100,7 @@ int main(int argc, char* argv[]) {
     t1=clock();
     
     // Add all BaconTrees to a chain
-    TChain* tree = new TChain("ntupler/Events");
+    TChain* tree = new TChain("Events");
     DIR *dpdf;
     struct dirent *epdf;
     int nFiles = 0;
@@ -127,7 +110,7 @@ int main(int argc, char* argv[]) {
     if (dpdf != NULL){
         while ((epdf = readdir(dpdf))){
             string fname = epdf->d_name;
-            if (fname != "." && fname != "..") {
+            if (fname != "." && fname != ".." && fname != "copyFiles.sh" && fname != "files.txt") {
                 tree->Add(inDir+fname);
                 nFiles++;
                 
@@ -153,11 +136,9 @@ int main(int argc, char* argv[]) {
     tree->SetBranchAddress("Jet05", &fJet);
     tree->SetBranchAddress("GenParticle", &fGenParticle);
     
-    TString strSel = "W_to";
-    if( eLepton ) strSel += "_e";
+    TString strSel = "jet_to_";
+    if( eJet ) strSel += "_e";
     else strSel += "_mu";
-    if( eJet ) strSel += "_jet_to_e";
-    else strSel += "_jet_to_mu";
     
     TH1::SetDefaultSumw2();
     TH2F *hJetNum, *hLeptNum, *hDenom, *hDenomJet=0;
@@ -192,22 +173,25 @@ int main(int argc, char* argv[]) {
         hMigrationBinCentres = new TH1D("Pt_migration_centre_"+strSel,"Pt_migration_centre_"+strSel, nPtBinsMu, ptBinsMujet);
     }
     
-    int lepElec=0, lepMuon=0, jetElec=0, jetMuon=0, l1NotMatched=0, l2NotMatched=0;
+    int lepElec=0, lepMuon=0, jetElec=0, jetMuon=0, l1NotMatched=0, l2NotMatched=0, elNotFound=0;
     float elecEffDenom=0, elecEffNum=0, muonEffDenom=0, muonEffNum=0;
-    int jetlep2GenMatch=0, wLept=0;
+    int jetlep2GenMatch=0, wLept=0, bJetEvents=0, nonBJetEvents=0;
     
     // Loop over events
     int nevents = tree->GetEntries(); // GetEntriesFast fails for chain
+    if( verbose > 2 ) nevents=1000;
     if( verbose > 0 ) cout << "nevents: " << nevents << endl;
     for( int i = 0; i < nevents; ++i ) {
         if( verbose > 0 ) loadbar(i+1,nevents);
         tree->GetEntry(i);
         int nElectrons = fElectron->GetEntriesFast();
         int nMuons = fMuon->GetEntriesFast();
+        int nGenParticles = fGenParticle->GetEntriesFast();
+        int nJets = fJet->GetEntriesFast();
         if( verbose > 2 ) cout << "nElectrons: " << nElectrons << ", nMuons: " << nMuons << endl;
         
         // Calculate lepton efficiencies
-        if( verbose > 1 ) {
+        if( verbose > 0 ) {
             for( int iE = 0; iE < nElectrons; ++iE ) {
                 TElectron *elec = (TElectron*)((*fElectron)[iE]);
                 if( fabs(elec->eta) < 2.5 && elec->pt > leptonPt) {
@@ -231,110 +215,141 @@ int main(int argc, char* argv[]) {
             }
         }
         
-        // -- Select at one tight lepton with pt > leptonPt GeV that matches a genLepton --
-        float leptonEta=-1, leptonPhi=-1; // Has to be removed from jet collection
-        // W -> e
-        if( eLepton ) {
-            if( nElectrons < 1 ) continue;
-            bool passFullSel = false;
+        // -- Require genLeptons in tracker to be matched --
+        vector<int> genElecIndex, genMuonIndex;
+        vector<float> elecEta, elecPhi, muonEta, muonPhi; // Has to be removed from jet collection
+        unsigned int nElecReq=0, nMuonReq=0;
+        const unsigned int parentId = 24;
+        
+        // Count number of electrons and muons expected in tracker
+        for( int iG = 0; iG < nGenParticles; ++iG ) {
+            TGenParticle *genP = (TGenParticle*)((*fGenParticle)[iG]); 
+            if( genP->status == 1 && genP->parent!=-1 && fabs(genP->eta) < 2.8 ) {  // 2.8 to correct for dR
+                if( abs(genP->pdgId) == 11 ) {
+                    bool foundW = false, stuck = false/*, inTracker = fabs(genP->eta) < 2.5*/;
+                    do {
+                        if(genP->parent!=-1) {
+                            TGenParticle *genTemp = (TGenParticle*)((*fGenParticle)[genP->parent]);
+                            genP = genTemp;
+                        }
+                        else stuck = true;
+                        if( abs(genP->pdgId) == parentId) {
+                            foundW = true;
+                        }
+                    } while( !stuck && !foundW ); 
+                    if( foundW ) {
+                        genElecIndex.push_back(iG);
+                        /*if( inTracker )*/ nElecReq++;
+                    }
+                }
+                if( abs(genP->pdgId) == 13 ) {
+                    bool foundW = false, stuck = false/*, inTracker = fabs(genP->eta) < 2.5*/;
+                    do {
+                        if(genP->parent!=-1) {
+                            TGenParticle *genTemp = (TGenParticle*)((*fGenParticle)[genP->parent]);
+                            genP = genTemp;
+                        }
+                        else stuck = true;
+                        if( abs(genP->pdgId) == parentId) {
+                            foundW = true;
+                        }
+                    } while( !stuck && !foundW ); 
+                    if( foundW ) {
+                        genMuonIndex.push_back(iG);
+                        /*if( inTracker )*/ nMuonReq++;
+                    }
+                }
+            }
+        }
+        if( verbose > 2 ) cout << "Required electrons in tracker: " << nElecReq << endl;
+        if( verbose > 2 ) cout << "Required muons in tracker: " << nMuonReq << endl;
+        
+        // Event selection: Require one real lepton in tracker 
+        if( (nElecReq + nMuonReq) != 1 ) {
+            if( verbose > 2 ) cout << "Not exactly one real lepton in tracker, skipping event" << endl;
+            continue;
+        }
+        
+        vector<int> genElecIndex2 = genElecIndex, genMuonIndex2 = genMuonIndex;
+    
+        if( nElecReq > 0 ) {
             for( int iE = 0; iE < nElectrons; ++iE ) {
                 TElectron *elec = (TElectron*)((*fElectron)[iE]);
                 bool inEndcap = fabs(elec->scEta) > 1.479;
                 bool passSel;
-                if( tightSel) passSel = elec->pt > leptonPt && passElectronID(elec, tightElCuts[inEndcap] );
+                if( tightSel) passSel = true/*elec->pt > leptonPt && passElectronID(elec, tightElCuts[inEndcap] )*/;
                 else passSel = elec->pt > leptonPt && passElectronID(elec, looseElCuts[inEndcap] );
                 if( passSel ) {
-                    if( verbose > 2 ) cout << "Electron " << iE <<" passed lepton id" << endl;
                     l1NotMatched++;
+                    if( verbose > 2 ) cout << "Electron " << iE <<" passed lepton id" << endl;
                     
                     // Match with genParticle
-                    int nGenParticles = fGenParticle->GetEntriesFast();
-                    for( int iG = 0; iG < nGenParticles; ++iG ) {
-                        TGenParticle *genP = (TGenParticle*)((*fGenParticle)[iG]); 
-                        if( abs(genP->pdgId) == 11) {
-                            Double_t dR = TMath::Sqrt( TMath::Power(genP->eta - elec->eta, 2) + TMath::Power(abs(abs(genP->phi - elec->phi)-pi)-pi, 2) );
-                            if( dR < 0.3 ) {
-                                lepElec++;
-                                if( verbose > 2 ) cout << "Matched with genElectron" << endl;
-                                
-                                // Look for a corresponding neutrino to get the W mass
-                                int nPdgId = (genP->pdgId==11)?-12:12;
-                                for( int iG2 = 0; iG2 < nGenParticles; ++iG2 ) {
-                                    TGenParticle *genP2 = (TGenParticle*)((*fGenParticle)[iG2]); 
-                                    if( genP2->pdgId == nPdgId) {
-                                        Double_t invMass = sqrt(2*genP->pt*genP2->pt*(cosh(genP->eta-genP2->eta)-cos(genP->phi-genP2->phi)));
-                                        if( invMass>65 && invMass<95 ) {
-                                            passFullSel = true;
-                                            leptonEta = elec->eta;
-                                            leptonPhi = elec->phi;
-                                            if( verbose > 2 ) cout << "Matched with W boson" << endl;
-                                            wLept++;
-                                            l1NotMatched--;
-                                            break;                                            
-                                        }
-                                    }
-                                }
-                                if( passFullSel ) break; // first pt genlepton
-                            }
+                    for( vector<int>::iterator iG = genElecIndex.begin(); iG != genElecIndex.end(); ++iG ) {
+                        TGenParticle *genP = (TGenParticle*)((*fGenParticle)[*iG]); 
+                        Double_t dR = TMath::Sqrt( TMath::Power(genP->eta - elec->eta, 2) + TMath::Power(fabs(fabs(genP->phi - elec->phi)-pi)-pi, 2) );
+                        bool sameCharge = genP->pdgId == (elec->q)*-11.;
+                        if( verbose > 2 ) cout << "dR: " << (dR < 0.3) << ", sameCharge: " << sameCharge << endl;
+                        
+                        if( sameCharge && dR < 0.3 ) {
+                            lepElec++;
+                            if( verbose > 2 ) cout << "Matched with genElectron " << *iG << " from W" << endl;
+                            elecEta.push_back(elec->eta);
+                            elecPhi.push_back(elec->phi);
+    //                         if( fabs(genP->eta) >= 2.5 ) nLeptonsReq++;  // corection for genLepton outside tracker en reco lepton inside
+                            genElecIndex.erase(iG); // genLepton can only be matched to one reco lepton
+                            wLept++;
+                            l1NotMatched--;
+                            break;                                            
                         }
                     }
-                    if( passFullSel ) break; // first pt lepton
                 }
             }
-            if( !passFullSel ) continue;
+            if( elecEta.size() != nElecReq ) {
+                if( verbose > 2 ) cout << "Electron not found" << endl;
+                elNotFound++;
+                continue;
+            }
         }
         
-        // W -> mu
-        else {
-            if( nMuons < 1 ) continue;
-            bool passFullSel = false;
+        if( nMuonReq > 0 ) { 
             for( int iM = 0; iM < nMuons; ++iM ) {
                 TMuon *muon = (TMuon*)((*fMuon)[iM]);
-                bool passSel;
-                if( tightSel) passSel = muon->pt > leptonPt && passTightMuonID(muon);
+                bool passSel/*= fabs(muon->eta) < 2.5 && ((muon->typeBits)/32)%2*/; // otherwise too many muons
+                if( tightSel) passSel = true /*muon->pt > leptonPt && passTightMuonID(muon)*/;
                 else passSel =  muon->pt > leptonPt && passLooseMuonID(muon);
                 if( passSel ) {
-                    if( verbose > 2 ) cout << "Muon " << iM << " passed lepton id" << endl;
                     l1NotMatched++;
+                    if( verbose > 2 ) cout << "Muon " << iM << " passed lepton id" << endl;
                     
                     // Match with genParticle
-                    int nGenParticles = fGenParticle->GetEntriesFast();
-                    for( int iG = 0; iG < nGenParticles; ++iG ) {
-                        TGenParticle *genP = (TGenParticle*)((*fGenParticle)[iG]); 
-                        if( abs(genP->pdgId) == 13) {
-                            Double_t dR = TMath::Sqrt( TMath::Power(genP->eta - muon->eta, 2) + TMath::Power(abs(abs(genP->phi - muon->phi)-pi)-pi, 2) );
-                            if( dR < 0.3 ) {
-                                lepMuon++;
-                                if( verbose > 2 ) cout << "Matched with genMuon" << endl;
-                                
-                                // Look for a corresponding neutrino to get the W mass
-                                int nPdgId = (genP->pdgId==13)?-14:14;
-                                for( int iG2 = 0; iG2 < nGenParticles; ++iG2 ) {
-                                    TGenParticle *genP2 = (TGenParticle*)((*fGenParticle)[iG2]); 
-                                    if( genP2->pdgId == nPdgId) {
-                                        Double_t invMass = sqrt(2*genP->pt*genP2->pt*(cosh(genP->eta-genP2->eta)-cos(genP->phi-genP2->phi)));
-                                        if( invMass>65 && invMass<95 ) {
-                                            passFullSel = true;
-                                            leptonEta = muon->eta;
-                                            leptonPhi = muon->phi;
-                                            if( verbose > 2 ) cout << "Matched with W boson" << endl;
-                                            wLept++;
-                                            l1NotMatched--;
-                                            break;                                            
-                                        }
-                                    }
-                                }
-                                if( passFullSel ) break; // first pt genlepton
-                            }
+                    for( vector<int>::iterator iG = genMuonIndex.begin(); iG != genMuonIndex.end(); ++iG ) {
+                        if( verbose > 2 ) cout << "Genleptons left:  " << genMuonIndex.size() << endl;
+                        TGenParticle *genP = (TGenParticle*)((*fGenParticle)[*iG]); 
+                        Double_t dR = TMath::Sqrt( TMath::Power(genP->eta - muon->eta, 2) + TMath::Power(fabs(fabs(genP->phi - muon->phi)-pi)-pi, 2) );
+                        bool sameCharge = genP->pdgId == (muon->q)*-13.;
+                        if( verbose > 2 ) cout << "dR: " << (dR < 0.3) << ", sameCharge: " << sameCharge << "gen charge: " << genP->pdgId << ", reco charge: " << (muon->q)*-13 << endl;
+                        
+                            if( sameCharge && dR < 0.3 ) {
+                            lepMuon++;
+                            if( verbose > 2 ) cout << "Matched with genMuon " << *iG << " from W" << endl;
+                            muonEta.push_back(muon->eta);
+                            muonPhi.push_back(muon->phi);
+    //                             if( fabs(genP->eta) >= 2.5 ) nLeptonsReq++; // corection for genLepton outside tracker en reco lepton inside
+                            genMuonIndex.erase(iG); // genLepton can only be matched to one reco lepton
+                            wLept++;
+                            l1NotMatched--;
+                            break;                                            
                         }
                     }
-                    if( passFullSel ) break; // first pt lepton
                 }
             }
-            if( !passFullSel ) continue;
+            if( muonEta.size() != nMuonReq ) {
+                if( verbose > 2 ) cout << "Muon not found" << endl;
+                continue;
+            }
         }
         
-        // -- Check if there is a second lepton --
+        // -- Check if there is a third lepton --
         int secLeptIndex = -1; // more than 1 leptons from jets is negligible
         TMuon *muon=0; 
         TElectron *elec=0;
@@ -345,30 +360,33 @@ int main(int argc, char* argv[]) {
                 TElectron *elec = (TElectron*)((*fElectron)[iE]);
                 bool inEndcap = fabs(elec->scEta) > 1.479;
                 bool passSel;
-                if( tightSel) passSel = elec->pt > leptonPt && passElectronID(elec, tightElCuts[inEndcap] );
-                else passSel = elec->pt > leptonPt && passElectronID(elec, looseElCuts[inEndcap] );
+                if( tightSel) passSel = elec->pt > leptonPt && fabs(elec->eta) < 2.5 && passElectronID(elec, tightElCuts[inEndcap] );
+                else passSel = elec->pt > leptonPt && fabs(elec->eta) < 2.5 && passElectronID(elec, looseElCuts[inEndcap] );
                 if( passSel ) {
-                    if( !eLepton || (leptonEta != elec->eta && leptonPhi != elec->phi) ) { // skip previously matched electron
-                        secLeptIndex = iE;
-                        if( verbose > 2 ) cout << "Electron " << iE <<" passed lepton id" << endl;
-                        jetElec++;
-                        
-                        // Match with genparticle
-                        int nGenParticles = fGenParticle->GetEntriesFast();
-                        for( int iG = 0; iG < nGenParticles; ++iG ) {
-                            TGenParticle *genP = (TGenParticle*)((*fGenParticle)[iG]); 
-                            if( abs(genP->pdgId) == 11) {
-                                Double_t dR = TMath::Sqrt( TMath::Power(genP->eta - elec->eta, 2) + TMath::Power(abs(abs(genP->phi - elec->phi)-pi)-pi, 2) );
-                                if( dR < 0.3 ) {
-                                    if( verbose > 2 ) cout << "Jet electron matched with genElecton" << endl;
-                                    jetlep2GenMatch++;
-                                    break;
-                                }
-                            }
-                        }
-                        
-                        break;
+                    // skip previously matched electron
+                    bool isWLepton = false;
+                    for( unsigned int iLep=0; iLep  < elecEta.size(); ++iLep ) {
+                        if( elecEta[iLep] == elec->eta || elecPhi[iLep] == elec->phi) isWLepton = true; 
                     }
+                    if( isWLepton ) continue;
+                    
+                    // Match with genParticle to be sure it doesn't come from W    
+                    for( vector<int>::iterator iG = genElecIndex2.begin(); iG != genElecIndex2.end(); ++iG ) {
+                        TGenParticle *genP = (TGenParticle*)((*fGenParticle)[*iG]); 
+                        Double_t dR = TMath::Sqrt( TMath::Power(genP->eta - elec->eta, 2) + TMath::Power(fabs(fabs(genP->phi - elec->phi)-pi)-pi, 2) );
+                        bool sameCharge = genP->pdgId == (elec->q)*-11.;
+                        if( dR < 0.3 && sameCharge ) {
+                            isWLepton=true;
+                            break;
+                        }
+                    }
+                    if( isWLepton ) continue;
+                        
+                    secLeptIndex = iE;
+                    if( verbose > 2 ) cout << "Electron " << iE <<" passed lepton id" << endl;
+                    jetElec++;
+                        
+                    break;
                 }
             } 
             if( secLeptIndex >= 0 ) 
@@ -380,61 +398,109 @@ int main(int argc, char* argv[]) {
             for( int iM = 0; iM < nMuons; ++iM ) {
                 TMuon *muon = (TMuon*)((*fMuon)[iM]);
                 bool passSel;
-                if( tightSel) passSel = muon->pt > leptonPt && passTightMuonID(muon);
-                else passSel = muon->pt > leptonPt && passLooseMuonID(muon);
+                if( tightSel) passSel = muon->pt > leptonPt && fabs(muon->eta) < 2.5 && passTightMuonID(muon);
+                else passSel = muon->pt > leptonPt && fabs(muon->eta) < 2.5 && passLooseMuonID(muon);
                 if( passSel ) {
-                    if( eLepton || (leptonEta != muon->eta && leptonPhi != muon->phi) ) { // skip previously matched muon
-                        secLeptIndex = iM;
-                        if( verbose > 2 ) cout << "Muon " << iM <<" passed lepton id" << endl;
-                        jetMuon++;
-                        
-                        // Match with genparticle
-                        int nGenParticles = fGenParticle->GetEntriesFast();
-                        for( int iG = 0; iG < nGenParticles; ++iG ) {
-                            TGenParticle *genP = (TGenParticle*)((*fGenParticle)[iG]); 
-                            if( abs(genP->pdgId) == 13) {
-                                Double_t dR = TMath::Sqrt( TMath::Power(genP->eta - muon->eta, 2) + TMath::Power(abs(abs(genP->phi - muon->phi)-pi)-pi, 2) );
-                                if( dR < 0.3 ) {
-                                    if( verbose > 2 ) cout << "Jet muon matched with gen muon" << endl;
-                                    jetlep2GenMatch++;
-                                    break;
-                                }
-                            }
-                        }
-                        
-                        break;
+                    // skip previously matched muon
+                    bool isWLepton = false;
+                    for( unsigned int iLep=0; iLep  < muonEta.size(); ++iLep ) {
+                        if( muonEta[iLep] == muon->eta && muonPhi[iLep] == muon->phi) isWLepton = true; 
                     }
+                    if( isWLepton ) continue;
+                    
+                    // Match with genParticle to be sure it doesn't come from W                    
+                    for( vector<int>::iterator iG = genMuonIndex2.begin(); iG != genMuonIndex2.end(); ++iG ) {
+                        TGenParticle *genP = (TGenParticle*)((*fGenParticle)[*iG]); 
+                        Double_t dR = TMath::Sqrt( TMath::Power(genP->eta - muon->eta, 2) + TMath::Power(fabs(fabs(genP->phi - muon->phi)-pi)-pi, 2) );
+                        bool sameCharge = genP->pdgId == (muon->q)*-13.;
+                        if( dR < 0.3 && sameCharge ) {
+                            isWLepton=true;
+                            break;
+                        }
+                    }
+                    if( isWLepton ) continue;
+                    
+                    secLeptIndex = iM;
+                    if( verbose > 2 ) cout << "Muon " << iM <<" passed lepton id" << endl;
+                    jetMuon++;
+                        
+                    break;
                 }
             } 
             if( secLeptIndex >= 0 ) 
                 muon = (TMuon*)((*fMuon)[secLeptIndex]);          
         }
         
-        // -- Loop ever jets --
-        int nJets = fJet->GetEntriesFast();
+        // Event selection: no b-jets (could apply this on uncleaned jets if genparticles are very slow)
+        bool bJetFound = false;
         for( int iJ = 0; iJ < nJets; ++iJ ) {
             TJet *jet = (TJet*)((*fJet)[iJ]);
             
-            // Skip first lepton 
-            Double_t dR = TMath::Sqrt( TMath::Power(leptonEta - jet->eta, 2) + TMath::Power(abs(abs(leptonPhi - jet->phi)-pi)-pi, 2) );
-            if( dR < 0.3 ) continue;
+            // Skip W leptons 
+            bool skipJet = false;
+            for( unsigned int iLep=0; iLep  < elecEta.size(); ++iLep ) {
+                 Double_t dR = TMath::Sqrt( TMath::Power(elecEta[iLep] - jet->eta, 2) + TMath::Power(fabs(fabs(elecPhi[iLep] - jet->phi)-pi)-pi, 2) );
+                 if( dR < 0.3 ) skipJet = true;
+            }
+            for( unsigned int iLep=0; iLep  < muonEta.size(); ++iLep ) {
+                 Double_t dR = TMath::Sqrt( TMath::Power(muonEta[iLep] - jet->eta, 2) + TMath::Power(fabs(fabs(muonPhi[iLep] - jet->phi)-pi)-pi, 2) );
+                 if( dR < 0.3 ) skipJet = true;
+            } 
+            if( skipJet ) continue;
+            
+            if( jet->csv > 0.679 ) {
+                bJetFound = true;
+                break;
+            }
+        }
+        if( bJetFound ) {
+            if( verbose > 2 ) cout << "Skipping event, contains b-jet" << endl;
+            bJetEvents++;
+            continue;  
+        }
+        else nonBJetEvents++;
+        
+        // -- Loop over jets --
+        for( int iJ = 0; iJ < nJets; ++iJ ) {
+            TJet *jet = (TJet*)((*fJet)[iJ]);
+            
+            // Skip W leptons 
+            bool skipJet = false;
+            for( unsigned int iLep=0; iLep  < elecEta.size(); ++iLep ) {
+                 Double_t dR = TMath::Sqrt( TMath::Power(elecEta[iLep] - jet->eta, 2) + TMath::Power(fabs(fabs(elecPhi[iLep] - jet->phi)-pi)-pi, 2) );
+                 if( dR < 0.3 ) skipJet = true;
+            }
+            for( unsigned int iLep=0; iLep  < muonEta.size(); ++iLep ) {
+                 Double_t dR = TMath::Sqrt( TMath::Power(muonEta[iLep] - jet->eta, 2) + TMath::Power(fabs(fabs(muonPhi[iLep] - jet->phi)-pi)-pi, 2) );
+                 if( dR < 0.3 ) skipJet = true;
+            } 
+            if( skipJet ) {
+                if( verbose > 2 ) cout << "Skipping jet, matched to lepton." << endl;
+                continue;
+            }
+            
+            // Skip PU jets ( jets not matched to gen jet )
+            if( jet->genpt == 0.0 ) {
+                if( verbose > 2 ) cout << "Skipping pu jet." << endl;
+                continue;
+            }
             
             // Fill histograms
-            hDenom->Fill(abs(jet->eta), jet->pt);
-            if( !eJet ) hDenomJet->Fill(abs(jet->eta), jet->pt);
-            int binNumber = hBinCentres->FindBin(abs(jet->eta),jet->pt);
+            hDenom->Fill(fabs(jet->eta), jet->pt);
+            if( !eJet ) hDenomJet->Fill(fabs(jet->eta), jet->pt);
+            int binNumber = hBinCentres->FindBin(fabs(jet->eta),jet->pt);
             hBinCentres->SetBinContent(binNumber, hBinCentres->GetBinContent(binNumber) + jet->pt );
             if( secLeptIndex >= 0 ) {
                 Double_t dR;
-                if(eJet) dR = TMath::Sqrt( TMath::Power(elec->eta - jet->eta, 2) + TMath::Power(abs(abs(elec->phi - jet->phi)-pi)-pi, 2) );
-                else dR = TMath::Sqrt( TMath::Power(muon->eta - jet->eta, 2) + TMath::Power(abs(abs(muon->phi - jet->phi)-pi)-pi, 2) );
+                if(eJet) dR = TMath::Sqrt( TMath::Power(elec->eta - jet->eta, 2) + TMath::Power(fabs(fabs(elec->phi - jet->phi)-pi)-pi, 2) );
+                else dR = TMath::Sqrt( TMath::Power(muon->eta - jet->eta, 2) + TMath::Power(fabs(fabs(muon->phi - jet->phi)-pi)-pi, 2) );
                 if( dR < 0.3 ) {
                     if(eJet) {
-                        hLeptNum->Fill(abs(elec->eta), elec->pt);
+                        hLeptNum->Fill(fabs(elec->eta), elec->pt);
                         TLorentzVector jet4V;
                         jet4V.SetPtEtaPhiM(jet->pt, jet->eta, jet->phi, jet->mass);
                         
-                        if( abs(jet->eta) < 1.5 ) {
+                        if( fabs(jet->eta) < 1.5 ) {
                             hPtMigrationCentral->Fill(jet->pt, jet->pt - elec->pt);
                             hEMigrationCentral->Fill(jet4V.E(), jet->pt - elec->pt);
                         }
@@ -444,11 +510,11 @@ int main(int argc, char* argv[]) {
                         }
                     }
                     else {
-                        hLeptNum->Fill(abs(muon->eta), muon->pt);
+                        hLeptNum->Fill(fabs(muon->eta), muon->pt);
                         TLorentzVector jet4V;
                         jet4V.SetPtEtaPhiM(jet->pt, jet->eta, jet->phi, jet->mass);
                         
-                        if( abs(jet->eta) < 1.5 ) {
+                        if( fabs(jet->eta) < 1.5 ) {
                             hPtMigrationCentral->Fill(jet->pt, jet->pt - muon->pt);
                             hEMigrationCentral->Fill(jet4V.E(), jet->pt - muon->pt);
                         }
@@ -460,7 +526,7 @@ int main(int argc, char* argv[]) {
                     int binNumber = hMigrationBinCentres->FindBin(jet->pt);
                     hMigrationBinCentres->SetBinContent(binNumber, hMigrationBinCentres->GetBinContent(binNumber) + jet->pt );
                         
-                    hJetNum->Fill(abs(jet->eta), jet->pt);
+                    hJetNum->Fill(fabs(jet->eta), jet->pt);
                     secLeptIndex = -1; // match with only 1 jet
                     if( verbose > 2 ) cout << "Matched with jet" << endl;
                 }                
@@ -475,14 +541,16 @@ int main(int argc, char* argv[]) {
     // Output
     cout << "Electron efficiency: " << elecEffNum/elecEffDenom << ", Muon efficiency: " << muonEffNum/muonEffDenom << endl;
     cout << "# elec1 passing sel and matched to gen electron: " << lepElec << ", # muons1 passing sel and matched to gen muon: " << lepMuon << endl;
+    cout << "# elec1 not found: " << elNotFound << endl;
     cout << "# elec2 passing sel: " << jetElec << ", # muons2 passing sel: " << jetMuon << endl;
     cout << "lep1 not matched with W: " << l1NotMatched << ", lep2 not matched with jet: " << l2NotMatched << endl;
     cout << "lep1 matched to W: " << wLept << endl;
     cout << "lept2 matched with a gen lepton: " << jetlep2GenMatch << endl;
+    cout << "b jet events: " << bJetEvents << ", non b jet events: " << nonBJetEvents << endl;
     cout << "Total fake rate: " << hJetNum->Integral()/hDenom->Integral() << endl;
     
     // -- Calculate and draw fake rate --
-    TFile* outFile = new TFile(outDirROOT+"FakeRate_centre.root","UPDATE");
+    TFile* outFile = new TFile(outDirROOT+"FakeRate_TTbar.root","UPDATE");
     hLeptNum->Write();
     hJetNum->Write();
     hDenom->Write();
@@ -557,7 +625,7 @@ bool passElectronID(TElectron* elec, const float (&cuts)[10] ) {
             elec->hovere < cuts[3] &&
             fabs(elec->d0) < cuts[4] &&
             fabs(elec->dz) < cuts[5] &&
-//             fabs(elec->eoverp)  < cuts[6] && // eoverp = E/p  -> missing
+//             fabs(elec->eoverp)  < cuts[6] && // eoverp = E/p  not what i need -> missing
             ((elec->chHadIso03 + max(elec->gammaIso03+elec->neuHadIso03-0.5* elec->puIso03,0.0))/elec->pt) < cuts[7] && // electron iso
             (!elec->isConv) &&
             elec->nMissingHits <= cuts[9] 
@@ -574,15 +642,29 @@ bool passTightMuonID(TMuon* muon) {
             fabs(muon->dz) < 0.5 &&
             muon->nPixHits > 0 &&
             muon->nTkLayers > 5 &&
-           ((muon->chHadIso04 + max(muon->gammaIso04+muon->neuHadIso04-0.5* muon->puIso04,0.0))/muon->pt) < 0.2 // muon iso  
+           ((muon->chHadIso04 + max(muon->gammaIso04+muon->neuHadIso04-0.5* muon->puIso04,0.0))/muon->pt) < 0.12 // muon iso  
     );  
 }
 
+// bool passLooseMuonID(TMuon* muon) {
+//     return( ((muon->typeBits)/32)%2 &&
+//             ( ((muon->typeBits)/2)%2 || ((muon->typeBits)/4)%2 ) &&
+//             ((muon->chHadIso04 + max(muon->gammaIso04+muon->neuHadIso04-0.5* muon->puIso04,0.0))/muon->pt) < 0.2 // muon iso  
+//           );
+// }
+
 bool passLooseMuonID(TMuon* muon) {
-    return( ((muon->typeBits)/32)%2 &&
-            ( ((muon->typeBits)/2)%2 || ((muon->typeBits)/4)%2 ) &&
-            ((muon->chHadIso04 + max(muon->gammaIso04+muon->neuHadIso04-0.5* muon->puIso04,0.0))/muon->pt) < 0.2 // muon iso  
-          );
+    return( ((muon->typeBits)/2)%2 &&
+            ((muon->typeBits)/32)%2 &&
+            muon->tkNchi2 < 10 && //
+            muon->nValidHits > 0 &&
+            muon->nMatchStn > 1 &&
+            fabs(muon->d0) < 0.2 && // d0 = -dxy
+            fabs(muon->dz) < 0.5 &&
+            muon->nPixHits > 0 &&
+            muon->nTkLayers > 5 &&
+           ((muon->chHadIso04 + max(muon->gammaIso04+muon->neuHadIso04-0.5* muon->puIso04,0.0))/muon->pt) < 0.16 // muon iso  
+    ); 
 }
         
         

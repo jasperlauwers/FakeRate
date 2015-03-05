@@ -4,3 +4,8 @@
 <flags CXXFLAGS="-g -Wall -std=c++0x -Wno-reorder"/>
 <bin file="FakeRate.cpp" name="FakeRate"> </bin>
 <bin file="FakeRate_isolation.cpp" name="FakeRate_isolation"> </bin>
+<bin file="FakeRate_migration.cpp" name="FakeRate_migration"> </bin>
+<bin file="FakeRate_pu.cpp" name="FakeRate_pu"> </bin>
+<bin file="FakeRate_DY.cpp" name="FakeRate_DY"> </bin>
+<bin file="FakeRate_DY_isolation.cpp" name="FakeRate_DY_iso"> </bin>
+<bin file="FakeRate_TTbar.cpp" name="FakeRate_TTbar"> </bin>

@@ -64,18 +64,18 @@ int main(int argc, char* argv[]) {
     const float tightElCuts[2][10] = {{0.004,0.03,0.01,0.12,0.02,0.1,0.05,0.1,1e-6,0},{0.005,0.02,0.03,0.1,0.02,0.1,0.05,0.1,1e-6,0}};
     
     // Directories
-    int maxInFiles=2;
+    int maxInFiles=500;
 //     TString outDirPNG = "/afs/cern.ch/user/j/jlauwers/www/protected/VBS/TP/FakeRate_rebin/";
     TString outDirROOT = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/Results/";
     TString eosDir = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/";
-    TString inDir = "eos/cms/store/group/dpg_ecal/alca_ecalcalib/ecalMIBI/rgerosa/TP_ANALYSIS/BACON_TREES/YTHIA6_Tauola_TTbar_TuneZ2star_14TeV-TP2023HGCALDR ";
+    TString inDir = "eos/cms/store/group/dpg_ecal/alca_ecalcalib/ecalMIBI/rgerosa/TP_ANALYSIS/BACON_TREES/PYTHIA6_Tauola_TTbar_TuneZ2star_14TeV-TP2023HGCALDR/";
 //     TString inDir = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/BaconTrees/";
     
     // Constants
     const Float_t pi = 3.1416;
     
     // Verbose output
-    int verbose = 1; // 0: no messages - 1: basic output and load bar - 2: calculate lepton efficiency - 3: all debug information 
+    int verbose = 2; // 0: no messages - 1: basic output and load bar - 2: calculate lepton efficiency - 3: all debug information 
     // ----------------------------------------
     
     // Parse command line parameters
@@ -115,6 +115,7 @@ int main(int argc, char* argv[]) {
             }
         }
     }
+    else cout << "Nothing in: " << eosDir << inDir << endl;
     if( verbose > 0 ) cout << "Added " << nFiles << " files to chain." << endl;
     
     tree->SetBranchStatus("*",0);

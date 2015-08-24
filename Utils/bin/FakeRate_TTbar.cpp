@@ -22,11 +22,12 @@
 #include "BaconAna/DataFormats/interface/TMuon.hh"
 #include "BaconAna/DataFormats/interface/TJet.hh"
 #include "BaconAna/DataFormats/interface/TGenParticle.hh"
+#include "BaconAna/DataFormats/interface/TEventInfo.hh"
 
 using namespace std;
 using namespace baconhep;
 
-bool passElectronID(TElectron* elec, const float (&cuts)[10]);
+bool passElectronID(TElectron* elec, const float (&cuts)[10], double rho );
 bool passTightMuonID(TMuon* muon);
 bool passLooseMuonID(TMuon* muon);
 
@@ -52,27 +53,22 @@ int main(int argc, char* argv[]) {
     float leptonPt = 20;
     
     // Binning
-//     const int nEtaBins = 10, nPtBins = 16;
-//     const float etaBins[nEtaBins+1] = {0,0.25,0.5,0.75,1,1.25,1.5,1.75,2,2.25,2.5};
-//     const float ptBins[nPtBins+1] = {0,10,20,30,40,50,60,70,80,90,100,120,140,160,180,200,250};
-    const int nEtaBinsEl = 6, nPtBinsEl = 10;
+    const int nEtaBinsEl = 6, nPtBinsEl = 6;
     const Double_t etaBinsEl[nEtaBinsEl+1] = {0,0.5,1,1.5,1.75,2,2.5};
-    const Double_t ptBinsEl[nPtBinsEl+1] = {20,30,40,50,60,80,100,130,170,220,300};
-    const int nEtaBinsMu = 4, nPtBinsMu = 3;
-    const Double_t etaBinsMu[nEtaBinsMu+1] = {0,0.75,1.5,2,2.5};
-    const Double_t ptBinsMu[nPtBinsMu+1] = {20,30,50,120};
-    const Double_t ptBinsMujet[nPtBinsMu+1] = {20,40,60,160};
+    const Double_t ptBinsEl[nPtBinsEl+1] = {20,30,50,80,120,180,300};
     
     // ID cuts
     const float looseElCuts[2][10] = {{0.004,0.06,0.01,0.12,0.02,0.1,0.05,0.15,1e-6,1},{0.007,0.03,0.03,0.1,0.02,0.1,0.05,0.15,1e-6,1}};    
     // veto cuts
+//     const float tightElCuts[2][10] = {{0.006574,0.022868,0.010181,0.037553,0.009924,0.015310,0.131191,0.074355,1,1},{0.005681,0.032046,0.028766,0.081902,0.027261,0.147154,0.106055,0.090185,1,1}};
     const float tightElCuts[2][10] = {{0.004,0.03,0.01,0.12,0.02,0.1,0.05,0.1,1e-6,0},{0.005,0.02,0.03,0.1,0.02,0.1,0.05,0.1,1e-6,0}};
     
     // Directories
-    int maxInFiles=250;
-    TString outDirPNG = "/afs/cern.ch/user/j/jlauwers/www/protected/VBS/TP/FakeRate_rebin/";
+    int maxInFiles=2;
+//     TString outDirPNG = "/afs/cern.ch/user/j/jlauwers/www/protected/VBS/TP/FakeRate_rebin/";
     TString outDirROOT = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/Results/";
-    TString inDir = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/eos/cms/store/group/upgrade/delphes/VBS_FakeRate/TTJets_MassiveBinDECAY_TuneZ2star_8TeV/";
+    TString eosDir = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/";
+    TString inDir = "eos/cms/store/group/dpg_ecal/alca_ecalcalib/ecalMIBI/rgerosa/TP_ANALYSIS/BACON_TREES/YTHIA6_Tauola_TTbar_TuneZ2star_14TeV-TP2023HGCALDR ";
 //     TString inDir = "/afs/cern.ch/work/j/jlauwers/VBS/TP/FakeRate/BaconTrees/";
     
     // Constants
@@ -106,12 +102,12 @@ int main(int argc, char* argv[]) {
     int nFiles = 0;
     if( verbose > 2 ) maxInFiles=1;
 
-    dpdf = opendir(inDir);
+    dpdf = opendir(eosDir+inDir);
     if (dpdf != NULL){
         while ((epdf = readdir(dpdf))){
             string fname = epdf->d_name;
-            if (fname != "." && fname != ".." && fname != "copyFiles.sh" && fname != "files.txt") {
-                tree->Add(inDir+fname);
+            if (fname != "." && fname != "..") {
+                tree->Add(eosDir+inDir+fname);
                 nFiles++;
                 
                 if( verbose > 2 ) cout << "Adding file: " << epdf->d_name << endl;
@@ -124,58 +120,49 @@ int main(int argc, char* argv[]) {
     tree->SetBranchStatus("*",0);
     tree->SetBranchStatus("Electron*",1);
     tree->SetBranchStatus("Muon*",1);
-    tree->SetBranchStatus("Jet05*",1);
+    tree->SetBranchStatus("Jet04*",1);
     tree->SetBranchStatus("GenParticle*",1);
+    tree->SetBranchStatus("rhoIso",1);
     
     TClonesArray *fElectron = new TClonesArray("baconhep::TElectron");
     TClonesArray *fMuon = new TClonesArray("baconhep::TMuon");
     TClonesArray *fJet = new TClonesArray("baconhep::TJet");
     TClonesArray *fGenParticle = new TClonesArray("baconhep::TGenParticle");
+    TEventInfo *eventInfo=0;
+        
     tree->SetBranchAddress("Electron", &fElectron);
     tree->SetBranchAddress("Muon", &fMuon);
-    tree->SetBranchAddress("Jet05", &fJet);
+    tree->SetBranchAddress("Jet04", &fJet);
     tree->SetBranchAddress("GenParticle", &fGenParticle);
+    tree->SetBranchAddress("Info", &eventInfo);
     
-    TString strSel = "jet_to_";
+    TString strSel = "jet_to";
     if( eJet ) strSel += "_e";
     else strSel += "_mu";
     
     TH1::SetDefaultSumw2();
-    TH2F *hJetNum, *hLeptNum, *hDenom, *hDenomJet=0;
-    TH2D *hBinCentres;
-    if( eJet ) {
-        hJetNum= new TH2F("Jet_Numerator_"+strSel,"Jet_Numerator_"+strSel,nEtaBinsEl, etaBinsEl, nPtBinsEl, ptBinsEl);
-        hLeptNum = new TH2F("Lepton_Numerator_"+strSel,"Lepton_Numerator_"+strSel,nEtaBinsEl, etaBinsEl, nPtBinsEl, ptBinsEl);
-        hDenom = new TH2F("Denominator_"+strSel,"Denominator_"+strSel,nEtaBinsEl, etaBinsEl, nPtBinsEl, ptBinsEl);
-        hBinCentres = new TH2D("Pt_centre_"+strSel,"Pt_centre_"+strSel,nEtaBinsEl, etaBinsEl, nPtBinsEl, ptBinsEl);
-    }
-    else {
-        hJetNum= new TH2F("Jet_Numerator_"+strSel,"Jet_Numerator_"+strSel,nEtaBinsMu, etaBinsMu, nPtBinsMu, ptBinsMujet);
-        hLeptNum = new TH2F("Lepton_Numerator_"+strSel,"Lepton_Numerator_"+strSel,nEtaBinsMu, etaBinsMu, nPtBinsMu, ptBinsMu);
-        hDenom = new TH2F("Denominator_"+strSel,"Denominator_"+strSel,nEtaBinsMu, etaBinsMu, nPtBinsMu, ptBinsMu);
-        hDenomJet = new TH2F("Jet_Denominator_"+strSel,"Jet_Denominator_"+strSel,nEtaBinsMu, etaBinsMu, nPtBinsMu, ptBinsMujet);
-        hBinCentres = new TH2D("Pt_centre_"+strSel,"Pt_centre_"+strSel,nEtaBinsMu, etaBinsMu, nPtBinsMu, ptBinsMujet);
-    }
-    TH2F *hPtMigrationCentral=0, *hPtMigrationForward=0, *hEMigrationCentral=0, *hEMigrationForward=0;
-    TH1D *hMigrationBinCentres;
-    if( eJet ) {
-        hPtMigrationCentral = new TH2F("Pt_migration_barrel_"+strSel,"Pt_migration_barrel_"+strSel,nPtBinsEl, ptBinsEl, 60, -50., 250.);
-        hPtMigrationForward = new TH2F("Pt_migration_endcap_"+strSel,"Pt_migration_endcap_"+strSel,nPtBinsEl, ptBinsEl, 60, -50., 250.);
-        hEMigrationCentral = new TH2F("E_migration_barrel_"+strSel,"E_migration_barrel_"+strSel,nPtBinsEl, ptBinsEl, 60, -50., 250.);
-        hEMigrationForward = new TH2F("E_migration_endcap_"+strSel,"E_migration_endcap_"+strSel,nPtBinsEl, ptBinsEl, 60, -50., 250.);
-        hMigrationBinCentres = new TH1D("Pt_migration_centre_"+strSel,"Pt_migration_centre_"+strSel, nPtBinsEl, ptBinsEl);
-    }
-    else {
-        hPtMigrationCentral = new TH2F("Pt_migration_barrel_"+strSel,"Pt_migration_"+strSel,nPtBinsMu, ptBinsMujet, 60, -50., 250.);
-        hPtMigrationForward = new TH2F("Pt_migration_endcap_"+strSel,"Pt_migration_endcap_"+strSel,nPtBinsMu, ptBinsMujet, 60, -50., 250.);
-        hEMigrationCentral = new TH2F("E_migration_barrel_"+strSel,"E_migration_barrel_"+strSel,nPtBinsMu, ptBinsMujet, 60, -50., 250.);
-        hEMigrationForward = new TH2F("E_migration_endcap_"+strSel,"E_migration_endcap_"+strSel,nPtBinsMu, ptBinsMujet, 60, -50., 250.);
-        hMigrationBinCentres = new TH1D("Pt_migration_centre_"+strSel,"Pt_migration_centre_"+strSel, nPtBinsMu, ptBinsMujet);
-    }
+    TH2F *hJetNum, *hDenom, *hJetNumB, *hDenomB;
+    TH2D *hBinCentres, *hBinCentresB;
+
+    hJetNum= new TH2F("Jet_Numerator_"+strSel,"Jet_Numerator_"+strSel,nEtaBinsEl, etaBinsEl, nPtBinsEl, ptBinsEl);
+    hDenom = new TH2F("Denominator_"+strSel,"Denominator_"+strSel,nEtaBinsEl, etaBinsEl, nPtBinsEl, ptBinsEl);
+    hBinCentres = new TH2D("Pt_centre_"+strSel,"Pt_centre_"+strSel,nEtaBinsEl, etaBinsEl, nPtBinsEl, ptBinsEl);
+
+    hJetNumB= new TH2F("Jet_Numerator_b_"+strSel,"Jet_Numerator_"+strSel,nEtaBinsEl, etaBinsEl, nPtBinsEl, ptBinsEl);
+    hDenomB = new TH2F("Denominator_b_"+strSel,"Denominator_"+strSel,nEtaBinsEl, etaBinsEl, nPtBinsEl, ptBinsEl);
+    hBinCentresB = new TH2D("Pt_centre_b_"+strSel,"Pt_centre_"+strSel,nEtaBinsEl, etaBinsEl, nPtBinsEl, ptBinsEl);
+
+    TH2F *hPtMigrationB=0, *hPtMigration=0;
+    TH1D *hMigrationBinCentres=0, *hBMigrationBinCentres;
+    hPtMigrationB = new TH2F("Pt_migration_b_"+strSel,"Pt_migration_b_"+strSel,nPtBinsEl, ptBinsEl, 60, -50., 250.);
+    hPtMigration = new TH2F("Pt_migration_"+strSel,"Pt_migration_"+strSel,nPtBinsEl, ptBinsEl, 60, -50., 250.);
+    hMigrationBinCentres = new TH1D("Pt_migration_centre_"+strSel,"Pt_migration_centre_"+strSel, nPtBinsEl, ptBinsEl);
+    hBMigrationBinCentres = new TH1D("Pt_migration_b_centre_"+strSel,"Pt_migration_b_centre_"+strSel, nPtBinsEl, ptBinsEl);
     
     int lepElec=0, lepMuon=0, jetElec=0, jetMuon=0, l1NotMatched=0, l2NotMatched=0, elNotFound=0;
     float elecEffDenom=0, elecEffNum=0, muonEffDenom=0, muonEffNum=0;
     int jetlep2GenMatch=0, wLept=0, bJetEvents=0, nonBJetEvents=0;
+    int cJets=0;
     
     // Loop over events
     int nevents = tree->GetEntries(); // GetEntriesFast fails for chain
@@ -198,8 +185,8 @@ int main(int argc, char* argv[]) {
                     elecEffDenom++;
                     bool inEndcap = fabs(elec->scEta) > 1.479;
                     bool passSel;
-                    if( tightSel) passSel = passElectronID(elec, tightElCuts[inEndcap] );
-                    else passSel = passElectronID(elec, looseElCuts[inEndcap] );
+                    if( tightSel) passSel = passElectronID(elec, tightElCuts[inEndcap], eventInfo->rhoIso);
+                    else passSel = passElectronID(elec, looseElCuts[inEndcap], eventInfo->rhoIso);
                     if( passSel ) elecEffNum++;
                 }
             }
@@ -224,11 +211,11 @@ int main(int argc, char* argv[]) {
         // Count number of electrons and muons expected in tracker
         for( int iG = 0; iG < nGenParticles; ++iG ) {
             TGenParticle *genP = (TGenParticle*)((*fGenParticle)[iG]); 
-            if( genP->status == 1 && genP->parent!=-1 && fabs(genP->eta) < 2.8 ) {  // 2.8 to correct for dR
+            if( genP->status == 1 && genP->parent>=0 && fabs(genP->eta) < 2.8 ) {  // 2.8 to correct for dR
                 if( abs(genP->pdgId) == 11 ) {
                     bool foundW = false, stuck = false/*, inTracker = fabs(genP->eta) < 2.5*/;
                     do {
-                        if(genP->parent!=-1) {
+                        if(genP->parent>=0) {
                             TGenParticle *genTemp = (TGenParticle*)((*fGenParticle)[genP->parent]);
                             genP = genTemp;
                         }
@@ -245,7 +232,7 @@ int main(int argc, char* argv[]) {
                 if( abs(genP->pdgId) == 13 ) {
                     bool foundW = false, stuck = false/*, inTracker = fabs(genP->eta) < 2.5*/;
                     do {
-                        if(genP->parent!=-1) {
+                        if(genP->parent>=0) {
                             TGenParticle *genTemp = (TGenParticle*)((*fGenParticle)[genP->parent]);
                             genP = genTemp;
                         }
@@ -264,21 +251,15 @@ int main(int argc, char* argv[]) {
         if( verbose > 2 ) cout << "Required electrons in tracker: " << nElecReq << endl;
         if( verbose > 2 ) cout << "Required muons in tracker: " << nMuonReq << endl;
         
-        // Event selection: Require one real lepton in tracker 
-        if( (nElecReq + nMuonReq) != 1 ) {
-            if( verbose > 2 ) cout << "Not exactly one real lepton in tracker, skipping event" << endl;
-            continue;
-        }
-        
         vector<int> genElecIndex2 = genElecIndex, genMuonIndex2 = genMuonIndex;
     
         if( nElecReq > 0 ) {
             for( int iE = 0; iE < nElectrons; ++iE ) {
                 TElectron *elec = (TElectron*)((*fElectron)[iE]);
-                bool inEndcap = fabs(elec->scEta) > 1.479;
+//                 bool inEndcap = fabs(elec->scEta) > 1.479;
                 bool passSel;
-                if( tightSel) passSel = true/*elec->pt > leptonPt && passElectronID(elec, tightElCuts[inEndcap] )*/;
-                else passSel = elec->pt > leptonPt && passElectronID(elec, looseElCuts[inEndcap] );
+                if( tightSel) passSel = true/*elec->pt > leptonPt && passElectronID(elec, tightElCuts[inEndcap], eventInfo->rhoIso )*/;
+                else passSel = true/*elec->pt > leptonPt && passElectronID(elec, looseElCuts[inEndcap], eventInfo->rhoIso )*/;
                 if( passSel ) {
                     l1NotMatched++;
                     if( verbose > 2 ) cout << "Electron " << iE <<" passed lepton id" << endl;
@@ -360,8 +341,8 @@ int main(int argc, char* argv[]) {
                 TElectron *elec = (TElectron*)((*fElectron)[iE]);
                 bool inEndcap = fabs(elec->scEta) > 1.479;
                 bool passSel;
-                if( tightSel) passSel = elec->pt > leptonPt && fabs(elec->eta) < 2.5 && passElectronID(elec, tightElCuts[inEndcap] );
-                else passSel = elec->pt > leptonPt && fabs(elec->eta) < 2.5 && passElectronID(elec, looseElCuts[inEndcap] );
+                if( tightSel) passSel = elec->pt > leptonPt && fabs(elec->eta) < 2.5 && passElectronID(elec, tightElCuts[inEndcap], eventInfo->rhoIso);
+                else passSel = elec->pt > leptonPt && fabs(elec->eta) < 2.5 && passElectronID(elec, looseElCuts[inEndcap], eventInfo->rhoIso);
                 if( passSel ) {
                     // skip previously matched electron
                     bool isWLepton = false;
@@ -374,8 +355,8 @@ int main(int argc, char* argv[]) {
                     for( vector<int>::iterator iG = genElecIndex2.begin(); iG != genElecIndex2.end(); ++iG ) {
                         TGenParticle *genP = (TGenParticle*)((*fGenParticle)[*iG]); 
                         Double_t dR = TMath::Sqrt( TMath::Power(genP->eta - elec->eta, 2) + TMath::Power(fabs(fabs(genP->phi - elec->phi)-pi)-pi, 2) );
-                        bool sameCharge = genP->pdgId == (elec->q)*-11.;
-                        if( dR < 0.3 && sameCharge ) {
+//                         bool sameCharge = genP->pdgId == (elec->q)*-11.;
+                        if( dR < 0.3 /*&& sameCharge*/ ) {
                             isWLepton=true;
                             break;
                         }
@@ -412,8 +393,8 @@ int main(int argc, char* argv[]) {
                     for( vector<int>::iterator iG = genMuonIndex2.begin(); iG != genMuonIndex2.end(); ++iG ) {
                         TGenParticle *genP = (TGenParticle*)((*fGenParticle)[*iG]); 
                         Double_t dR = TMath::Sqrt( TMath::Power(genP->eta - muon->eta, 2) + TMath::Power(fabs(fabs(genP->phi - muon->phi)-pi)-pi, 2) );
-                        bool sameCharge = genP->pdgId == (muon->q)*-13.;
-                        if( dR < 0.3 && sameCharge ) {
+//                         bool sameCharge = genP->pdgId == (muon->q)*-13.;
+                        if( dR < 0.3 /*&& sameCharge*/ ) {
                             isWLepton=true;
                             break;
                         }
@@ -430,35 +411,6 @@ int main(int argc, char* argv[]) {
             if( secLeptIndex >= 0 ) 
                 muon = (TMuon*)((*fMuon)[secLeptIndex]);          
         }
-        
-        // Event selection: no b-jets (could apply this on uncleaned jets if genparticles are very slow)
-        bool bJetFound = false;
-        for( int iJ = 0; iJ < nJets; ++iJ ) {
-            TJet *jet = (TJet*)((*fJet)[iJ]);
-            
-            // Skip W leptons 
-            bool skipJet = false;
-            for( unsigned int iLep=0; iLep  < elecEta.size(); ++iLep ) {
-                 Double_t dR = TMath::Sqrt( TMath::Power(elecEta[iLep] - jet->eta, 2) + TMath::Power(fabs(fabs(elecPhi[iLep] - jet->phi)-pi)-pi, 2) );
-                 if( dR < 0.3 ) skipJet = true;
-            }
-            for( unsigned int iLep=0; iLep  < muonEta.size(); ++iLep ) {
-                 Double_t dR = TMath::Sqrt( TMath::Power(muonEta[iLep] - jet->eta, 2) + TMath::Power(fabs(fabs(muonPhi[iLep] - jet->phi)-pi)-pi, 2) );
-                 if( dR < 0.3 ) skipJet = true;
-            } 
-            if( skipJet ) continue;
-            
-            if( jet->csv > 0.679 ) {
-                bJetFound = true;
-                break;
-            }
-        }
-        if( bJetFound ) {
-            if( verbose > 2 ) cout << "Skipping event, contains b-jet" << endl;
-            bJetEvents++;
-            continue;  
-        }
-        else nonBJetEvents++;
         
         // -- Loop over jets --
         for( int iJ = 0; iJ < nJets; ++iJ ) {
@@ -485,48 +437,61 @@ int main(int argc, char* argv[]) {
                 continue;
             }
             
+            // Skip b-tagged jets
+            if( jet->csv > 0.679 ) {
+                if( verbose > 2 ) cout << "Skipping b-tagged jet." << endl;
+                bJetEvents++;
+                if( eJet ) continue; // muon fake rate independent of b-tag
+            }
+            else nonBJetEvents++;
+            
             // Fill histograms
-            hDenom->Fill(fabs(jet->eta), jet->pt);
-            if( !eJet ) hDenomJet->Fill(fabs(jet->eta), jet->pt);
-            int binNumber = hBinCentres->FindBin(fabs(jet->eta),jet->pt);
-            hBinCentres->SetBinContent(binNumber, hBinCentres->GetBinContent(binNumber) + jet->pt );
+            bool bJet = false;
+            if( abs(jet->mcFlavor) == 5 ) bJet = true;
+            
+            if(bJet) {
+                hDenomB->Fill(fabs(jet->eta), jet->pt);
+                int binNumber = hBinCentresB->FindBin(fabs(jet->eta),jet->pt);
+                hBinCentresB->SetBinContent(binNumber, hBinCentresB->GetBinContent(binNumber) + jet->pt );
+            }
+            else {
+                hDenom->Fill(fabs(jet->eta), jet->pt);
+                int binNumber = hBinCentres->FindBin(fabs(jet->eta),jet->pt);
+                hBinCentres->SetBinContent(binNumber, hBinCentres->GetBinContent(binNumber) + jet->pt );
+            }
             if( secLeptIndex >= 0 ) {
                 Double_t dR;
                 if(eJet) dR = TMath::Sqrt( TMath::Power(elec->eta - jet->eta, 2) + TMath::Power(fabs(fabs(elec->phi - jet->phi)-pi)-pi, 2) );
                 else dR = TMath::Sqrt( TMath::Power(muon->eta - jet->eta, 2) + TMath::Power(fabs(fabs(muon->phi - jet->phi)-pi)-pi, 2) );
                 if( dR < 0.3 ) {
                     if(eJet) {
-                        hLeptNum->Fill(fabs(elec->eta), elec->pt);
-                        TLorentzVector jet4V;
-                        jet4V.SetPtEtaPhiM(jet->pt, jet->eta, jet->phi, jet->mass);
-                        
-                        if( fabs(jet->eta) < 1.5 ) {
-                            hPtMigrationCentral->Fill(jet->pt, jet->pt - elec->pt);
-                            hEMigrationCentral->Fill(jet4V.E(), jet->pt - elec->pt);
+                        if( bJet ) {
+                            hPtMigrationB->Fill(jet->pt, jet->pt - elec->pt);
                         }
                         else {
-                            hPtMigrationForward->Fill(jet->pt, jet->pt - elec->pt);
-                            hEMigrationForward->Fill(jet4V.E(), jet->pt - elec->pt);
+                            hPtMigration->Fill(jet->pt, jet->pt - elec->pt);
                         }
                     }
                     else {
-                        hLeptNum->Fill(fabs(muon->eta), muon->pt);
-                        TLorentzVector jet4V;
-                        jet4V.SetPtEtaPhiM(jet->pt, jet->eta, jet->phi, jet->mass);
-                        
-                        if( fabs(jet->eta) < 1.5 ) {
-                            hPtMigrationCentral->Fill(jet->pt, jet->pt - muon->pt);
-                            hEMigrationCentral->Fill(jet4V.E(), jet->pt - muon->pt);
+                        if( bJet ) {
+                            hPtMigrationB->Fill(jet->pt, jet->pt - muon->pt);
                         }
                         else {
-                            hPtMigrationForward->Fill(jet->pt, jet->pt - muon->pt);
-                            hEMigrationForward->Fill(jet4V.E(), jet->pt - muon->pt);
+                            hPtMigration->Fill(jet->pt, jet->pt - muon->pt);
                         }
                     }
-                    int binNumber = hMigrationBinCentres->FindBin(jet->pt);
-                    hMigrationBinCentres->SetBinContent(binNumber, hMigrationBinCentres->GetBinContent(binNumber) + jet->pt );
+                    if( bJet) {
+                        int binNumber = hBMigrationBinCentres->FindBin(jet->pt);
+                        hBMigrationBinCentres->SetBinContent(binNumber, hBMigrationBinCentres->GetBinContent(binNumber) + jet->pt );
+                        hJetNumB->Fill(fabs(jet->eta), jet->pt);
+                    }
+                    else {
+                        int binNumber = hMigrationBinCentres->FindBin(jet->pt);
+                        hMigrationBinCentres->SetBinContent(binNumber, hMigrationBinCentres->GetBinContent(binNumber) + jet->pt );
+                        hJetNum->Fill(fabs(jet->eta), jet->pt);                        
+                    }
+                    if( abs(jet->mcFlavor) == 4 && fabs(jet->eta) < 2.5 && jet->csv < 0.679) cJets++;
                         
-                    hJetNum->Fill(fabs(jet->eta), jet->pt);
                     secLeptIndex = -1; // match with only 1 jet
                     if( verbose > 2 ) cout << "Matched with jet" << endl;
                 }                
@@ -546,71 +511,33 @@ int main(int argc, char* argv[]) {
     cout << "lep1 not matched with W: " << l1NotMatched << ", lep2 not matched with jet: " << l2NotMatched << endl;
     cout << "lep1 matched to W: " << wLept << endl;
     cout << "lept2 matched with a gen lepton: " << jetlep2GenMatch << endl;
-    cout << "b jet events: " << bJetEvents << ", non b jet events: " << nonBJetEvents << endl;
-    cout << "Total fake rate: " << hJetNum->Integral()/hDenom->Integral() << endl;
+    cout << "b-tagged jets: " << bJetEvents << ", non b-taged jets: " << nonBJetEvents << endl;
+    cout << "c-jets in numerator: " << cJets << endl;
+    cout << "Fake rate: " << hJetNum->Integral()/hDenom->Integral() << endl;
+    cout << "Fake rate  b-jets: " << hJetNumB->Integral()/hDenomB->Integral() << endl;
+    cout << "Average fake rate: " << (hJetNumB->Integral()+hJetNum->Integral())/(hDenomB->Integral()+hDenom->Integral()) << endl;
     
     // -- Calculate and draw fake rate --
-    TFile* outFile = new TFile(outDirROOT+"FakeRate_TTbar.root","UPDATE");
-    hLeptNum->Write();
+    TFile* outFile = new TFile(outDirROOT+"FakeRate_TTbar_14TeV_HGCal.root","UPDATE");
     hJetNum->Write();
+    hJetNumB->Write();
     hDenom->Write();
-    if( !eJet )hDenomJet->Write();
-    hPtMigrationCentral->Write();
-    hEMigrationCentral->Write();
-    hPtMigrationForward->Write();
-    hEMigrationForward->Write();
+    hDenomB->Write();
+    hPtMigrationB->Write();
+    hPtMigration->Write();
     
     // Bin centres 
-    if( eJet ) hBinCentres->Divide(hDenom);
-    else hBinCentres->Divide(hDenomJet);
-    TH1D *hPtMigBins = hPtMigrationCentral->ProjectionX("_ptbinsce");
-    hPtMigBins->Add( hPtMigrationForward->ProjectionX("_ptbinsfw") );
+    hBinCentres->Divide(hDenom);
+    hBinCentresB->Divide(hDenomB);
+    TH1D *hPtMigBins = hPtMigration->ProjectionX("_ptbinsce");
+    TH1D *hPtBMigBins = hPtMigrationB->ProjectionX("B_ptbinsce");
     hMigrationBinCentres->Divide(hPtMigBins);
+    hBMigrationBinCentres->Divide(hPtBMigBins);
     hBinCentres->Write();
     hMigrationBinCentres->Write();
-
-    TString strTitle = "Fake_rate_";
-    strTitle += strSel;
+    hBinCentresB->Write();
+    hBMigrationBinCentres->Write();
     
-    TH2F *hLeptFakeRate = (TH2F*) hLeptNum->Clone(strTitle+"_leptNum");
-    hLeptFakeRate->Divide(hDenom);
-    hLeptFakeRate->SetTitle(strTitle+"_leptNum");
-    
-    TH2F *hJetFakeRate = (TH2F*) hJetNum->Clone(strTitle+"_jetNum");
-    hJetFakeRate->Divide(hDenom);
-    hJetFakeRate->SetTitle(strTitle+"_jetNum");
-    
-    TCanvas *c1 = new TCanvas("c1","c1");
-    TH1D *hJetFakeRate_eta =  hJetNum->ProjectionX(strTitle+"_jetNum_eta", 0, -1, "e");
-    TH1D *hDenom_eta =  hDenom->ProjectionX("Denominator_jetNum_eta", 0, -1, "e");
-    hJetFakeRate_eta->Divide(hDenom_eta);
-    hJetFakeRate_eta->GetXaxis()->SetTitle("eta");
-    hJetFakeRate_eta->Draw();
-    c1->Print(outDirPNG+strTitle+"_jetNum_eta.png","png");
-    hJetFakeRate_eta->Write();
-    
-    TCanvas *c2 = new TCanvas("c2","c2");
-    TH1D *hJetFakeRate_pt =  hJetNum->ProjectionY(strTitle+"_jetNum_pt", 0, -1, "e");
-    TH1D *hDenom_pt =  hDenom->ProjectionY("Denominator_jetNum_pt", 0, -1, "e");
-    hJetFakeRate_pt->Divide(hDenom_pt);
-    hJetFakeRate_pt->GetXaxis()->SetTitle("pt");
-    hJetFakeRate_pt->Draw();
-    c2->Print(outDirPNG+strTitle+"_jetNum_pt.png","png");
-    hJetFakeRate_pt->Write();
-    
-    TCanvas *c3 = new TCanvas("c3","c3");
-    hLeptFakeRate->GetXaxis()->SetTitle("eta");
-    hLeptFakeRate->GetYaxis()->SetTitle("pt");
-    hLeptFakeRate->Draw("TEXT");
-    c3->Print(outDirPNG+strTitle+"_leptNum"+".png","png");
-    hLeptFakeRate->Write();
-    
-    TCanvas *c4 = new TCanvas("c4","c4");
-    hJetFakeRate->GetXaxis()->SetTitle("eta");
-    hJetFakeRate->GetYaxis()->SetTitle("pt");
-    hJetFakeRate->Draw("TEXT");
-    c4->Print(outDirPNG+strTitle+"_jetNum"+".png","png");
-    hJetFakeRate->Write();
     outFile->Delete();
     
     t2=clock();
@@ -618,15 +545,26 @@ int main(int argc, char* argv[]) {
     cout<< " Total runtime: " << diff/CLOCKS_PER_SEC <<endl;
 }
 
-bool passElectronID(TElectron* elec, const float (&cuts)[10] ) {  
+bool passElectronID(TElectron* elec, const float (&cuts)[10], double rho ) { 
+    // electron iso rho correction
+    float eff_area;
+    if( abs(elec->eta)<1.0 ) eff_area = 0.13;
+    else if(abs(elec->eta)>1.0 && abs(elec->eta)<1.479 ) eff_area = 0.14;
+    else if(abs(elec->eta)>1.479 && abs(elec->eta)<2.0 ) eff_area = 0.07;
+    else if(abs(elec->eta)>2.0 && abs(elec->eta)<2.2 ) eff_area = 0.09;
+    else if(abs(elec->eta)>2.2 && abs(elec->eta)<2.3 ) eff_area = 0.11;
+    else if(abs(elec->eta)>2.3 && abs(elec->eta)<2.4 ) eff_area = 0.11;
+    else eff_area = 0.14;
+    
     return( fabs(elec->dEtaIn) < cuts[0] &&
             fabs(elec->dPhiIn) < cuts[1] &&
             elec->sieie  < cuts[2] &&
             elec->hovere < cuts[3] &&
             fabs(elec->d0) < cuts[4] &&
             fabs(elec->dz) < cuts[5] &&
-//             fabs(elec->eoverp)  < cuts[6] && // eoverp = E/p  not what i need -> missing
-            ((elec->chHadIso03 + max(elec->gammaIso03+elec->neuHadIso03-0.5* elec->puIso03,0.0))/elec->pt) < cuts[7] && // electron iso
+            fabs((1 - elec->eoverp)/elec->ecalEnergy) < cuts[6] && 
+//             ((elec->chHadIso03 + max(elec->gammaIso03+elec->neuHadIso03-0.5* elec->puIso03,0.0))/elec->pt) < cuts[7] && // electron iso dBeta
+            (elec->chHadIso03 + max(elec->gammaIso03 + elec->neuHadIso03 - max(rho, 0.0)*eff_area, 0.0))/elec->pt < cuts[7] && // electron iso rho correction
             (!elec->isConv) &&
             elec->nMissingHits <= cuts[9] 
           );    
